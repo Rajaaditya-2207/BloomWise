@@ -204,16 +204,29 @@ function FarmerRegistration() {
                 .single();
 
             if (dbError) {
-                // If phone already exists, try to fetch existing farmer
+                // If phone/email already exists, try to fetch existing farmer
+                // Error code 23505 is unique_violation
                 if (dbError.code === '23505') {
-                    const { data: existing } = await supabase
+                    // Start checking with Phone
+                    let { data: existing } = await supabase
                         .from('farmers')
                         .select('*')
                         .eq('phone', formData.phone)
                         .single();
 
+                    // If not found by phone, check Email
+                    if (!existing && formData.email) {
+                        const { data: existingEmail } = await supabase
+                            .from('farmers')
+                            .select('*')
+                            .eq('email', formData.email)
+                            .single();
+                        existing = existingEmail;
+                    }
+
                     if (existing) {
                         agentMemory.setFarmer(existing);
+                        // Optional: Show a toast "Welcome back! Account existed."
                         navigate('/');
                         return;
                     }
