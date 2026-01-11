@@ -11,7 +11,7 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 const MAX_TOOL_CALLS = 6;
 
 // System prompt for the agent
-const AGENT_SYSTEM_PROMPT = `You are KrishiMitra (कृषिमित्र), an AI-powered Smart Irrigation Scheduler & Water Saver agent for Indian farmers.
+const AGENT_SYSTEM_PROMPT = `You are BloomWise, an AI-powered Smart Irrigation Scheduler & Water Saver agent for Indian farmers.
 
 ## YOUR MISSION
 Help farmers plan daily irrigation to SAVE WATER and PROTECT CROPS using weather forecast, soil moisture, and crop stage data.

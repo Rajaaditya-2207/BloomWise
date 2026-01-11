@@ -20,7 +20,7 @@ if (isGeminiConfigured) {
 }
 
 // System prompt for the irrigation assistant - Agentic with citations and disclaimers
-const SYSTEM_PROMPT = `You are KrishiMitra, an AI-powered Smart Irrigation Scheduler & Water Saver agent for Indian farmers.
+const SYSTEM_PROMPT = `You are BloomWise, an AI-powered Smart Irrigation Scheduler & Water Saver agent for Indian farmers.
 
 ## YOUR GOAL
 Help farmers plan daily irrigation to SAVE WATER and PROTECT CROPS using weather, soil moisture, and crop stage data.
@@ -99,7 +99,7 @@ export async function chat(userMessage, context = {}, history = []) {
         const chat = model.startChat({
             history: [
                 { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
-                { role: 'model', parts: [{ text: 'Namaste! Main KrishiMitra hoon, aapka irrigation assistant. Aap mujhse Hindi ya English mein baat kar sakte hain. Aapki kya madad kar sakta hoon? 🌾' }] },
+                { role: 'model', parts: [{ text: 'Namaste! Main BloomWise hoon, aapka irrigation assistant. Aap mujhse Hindi ya English mein baat kar sakte hain. Aapki kya madad kar sakta hoon? 🌾' }] },
                 ...chatHistory
             ],
             generationConfig: {
@@ -371,7 +371,7 @@ Jai Kisan! 🙏`,
     if (isHindiDevanagari) {
         return {
             success: true,
-            message: `नमस्ते! 🙏 मैं कृषिमित्र हूं।
+            message: `नमस्ते! 🙏 मैं BloomWise हूं।
 
 आप मुझसे ये पूछ सकते हैं:
 • "क्या आज सिंचाई करनी चाहिए?"
@@ -386,7 +386,7 @@ Jai Kisan! 🙏`,
 
     return {
         success: true,
-        message: `Hello! 🙏 I am KrishiMitra.
+        message: `Hello! 🙏 I am BloomWise.
 
 You can ask me:
 • "Should I irrigate today?"

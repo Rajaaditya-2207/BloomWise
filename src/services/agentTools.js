@@ -1,6 +1,6 @@
 /**
  * Agent Tools Definition
- * Tools that the KrishiMitra agent can call autonomously
+ * Tools that the BloomWise agent can call autonomously
  */
 
 import weatherService from './weatherService';
