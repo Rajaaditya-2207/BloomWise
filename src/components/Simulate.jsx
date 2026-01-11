@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp, useLanguage } from '../App';
-import { WaterIcon, PlantIcon, SunIcon, CloudRainIcon, PowerIcon, AgentIcon, SignalIcon, ChartIcon } from './Icons';
+import { WaterIcon, PlantIcon, SunIcon, CloudRainIcon, PowerIcon, AgentIcon, SignalIcon, ChartIcon, SimulateIcon, StopIcon } from './Icons';
+import { agentDecisionLog } from '../services/agentDecisionLog';
 
 /**
  * Simulate Page - Mock Data Generation & Agent Decision Simulation
@@ -49,7 +50,7 @@ function Simulate() {
         if (data.rainProbability > 60) {
             decision = {
                 shouldIrrigate: false,
-                reason: language === 'hi' ? '🌧️ बारिश की संभावना अधिक है' : '🌧️ High rain probability detected',
+                reason: t('rain_high'),
                 action: 'SKIP_RAIN',
                 waterAmount: 0,
                 duration: 0,
@@ -58,7 +59,7 @@ function Simulate() {
         } else if (data.soilMoisture > 60) {
             decision = {
                 shouldIrrigate: false,
-                reason: language === 'hi' ? '💧 मिट्टी में पर्याप्त नमी है' : '💧 Soil moisture is adequate',
+                reason: t('soil_moisture_adequate'),
                 action: 'SKIP_MOISTURE',
                 waterAmount: 0,
                 duration: 0,
@@ -67,7 +68,7 @@ function Simulate() {
         } else if (!data.powerAvailable) {
             decision = {
                 shouldIrrigate: false,
-                reason: language === 'hi' ? '⚡ बिजली उपलब्ध नहीं' : '⚡ Power not available',
+                reason: t('power_unavailable'),
                 action: 'SKIP_POWER',
                 waterAmount: 0,
                 duration: 0,
@@ -77,7 +78,7 @@ function Simulate() {
             const waterNeeded = Math.floor((50 - data.soilMoisture) * 100);
             decision = {
                 shouldIrrigate: true,
-                reason: language === 'hi' ? '🚿 सिंचाई आवश्यक है - मिट्टी सूखी है' : '🚿 Irrigation needed - soil is dry',
+                reason: t('irrigation_needed_dry'),
                 action: 'IRRIGATE',
                 waterAmount: waterNeeded,
                 duration: Math.floor(waterNeeded / 50),
@@ -86,7 +87,7 @@ function Simulate() {
         } else {
             decision = {
                 shouldIrrigate: false,
-                reason: language === 'hi' ? '✅ आज सिंचाई की आवश्यकता नहीं' : '✅ No irrigation needed today',
+                reason: t('no_irrigation_needed'),
                 action: 'SKIP_NORMAL',
                 waterAmount: 0,
                 duration: 0,
@@ -144,6 +145,14 @@ function Simulate() {
             // Make decision
             const decision = makeAgentDecision(mockData);
 
+            // Log decision to the decision log service (for analytics)
+            const waterSaved = decision.shouldIrrigate ? 0 : Math.floor(Math.random() * 2000) + 1500;
+            agentDecisionLog.logDecision({
+                ...decision,
+                sensorData: mockData,
+                waterSaved
+            }, farm?.isDemo);
+
             // Send hardware signal
             const signal = sendHardwareSignal(decision);
 
@@ -178,6 +187,34 @@ function Simulate() {
         };
     }, []);
 
+    // Load signal history on mount
+    useEffect(() => {
+        const loadHistory = async () => {
+            const history = await agentDecisionLog.getDecisions(farm?.isDemo || true, 10);
+            const formattedSignals = history.map(h => ({
+                id: h.id || Date.now(),
+                timestamp: new Date(h.timestamp),
+                type: h.action === 'IRRIGATE' ? 'ACTIVATE_PUMP' : 'STANDBY',
+                payload: {
+                    action: h.action,
+                    pumpId: 'PUMP_001',
+                    zone: 'ZONE_A',
+                    waterAmount: h.waterUsed,
+                    duration: h.duration,
+                    status: 'ACKNOWLEDGED'
+                },
+                decision: {
+                    shouldIrrigate: h.action === 'IRRIGATE',
+                    reason: h.reason,
+                    action: h.action,
+                    confidence: h.confidence
+                }
+            }));
+            setSignals(formattedSignals);
+        };
+        loadHistory();
+    }, []);
+
     const formatTime = (date) => {
         return date.toLocaleTimeString(language === 'hi' ? 'hi-IN' : 'en-IN', {
             hour: '2-digit',
@@ -191,41 +228,37 @@ function Simulate() {
             {/* Header */}
             <header className="simulate-header glass-card">
                 <div className="header-content">
-                    <h1 className="header-title"><AgentIcon size={28} className="header-icon" /> {language === 'hi' ? 'एजेंट सिमुलेशन' : 'Agent Simulation'}</h1>
-                    <p>{language === 'hi' ? 'AI एजेंट को वास्तविक समय में काम करते देखें' : 'Watch the AI agent make decisions in real-time'}</p>
+                    <h1 className="header-title"><AgentIcon size={28} className="header-icon" /> {t('agent_simulation')}</h1>
+                    <p>{t('watch_agent')}</p>
                 </div>
                 <button
                     className={`simulate-btn ${isRunning ? 'running' : ''}`}
                     onClick={toggleSimulation}
                 >
                     {isRunning ? (
-                        <>{language === 'hi' ? '⏹ रोकें' : '⏹ Stop'}</>
+                        <><StopIcon size={20} /> {t('simulate_stop')}</>
                     ) : (
-                        <>{language === 'hi' ? '▶️ शुरू करें' : '▶️ Start Simulation'}</>
+                        <><SimulateIcon size={20} /> {t('simulate_start')}</>
                     )}
                 </button>
             </header>
 
             {/* Hardware Status */}
             <section className="hardware-status glass-card">
-                <h3><PowerIcon size={20} className="section-icon" /> {language === 'hi' ? 'हार्डवेयर स्थिति' : 'Hardware Status'}</h3>
+                <h3><PowerIcon size={20} className="section-icon" /> {t('hardware_status')}</h3>
                 <div className="status-grid">
                     <div className={`status-item ${hardwareStatus.connected ? 'connected' : ''}`}>
                         <span className="status-dot"></span>
-                        <span>{language === 'hi' ? 'कनेक्शन' : 'Connection'}</span>
+                        <span>{t('connection')}</span>
                         <span className="status-value">
-                            {hardwareStatus.connected ?
-                                (language === 'hi' ? 'जुड़ा हुआ' : 'Connected') :
-                                (language === 'hi' ? 'डिस्कनेक्ट' : 'Disconnected')}
+                            {hardwareStatus.connected ? t('connected') : t('disconnected')}
                         </span>
                     </div>
                     <div className={`status-item ${hardwareStatus.pumpRunning ? 'active' : ''}`}>
                         <span className="status-dot"></span>
-                        <span>{language === 'hi' ? 'पंप' : 'Pump'}</span>
+                        <span>{t('pump')}</span>
                         <span className="status-value">
-                            {hardwareStatus.pumpRunning ?
-                                (language === 'hi' ? 'चालू' : 'Running') :
-                                (language === 'hi' ? 'बंद' : 'Off')}
+                            {hardwareStatus.pumpRunning ? t('running') : t('off')}
                         </span>
                     </div>
                 </div>
@@ -234,26 +267,26 @@ function Simulate() {
             {/* Current Sensor Data */}
             {currentData && (
                 <section className="sensor-data glass-card">
-                    <h3><ChartIcon size={20} className="section-icon" /> {language === 'hi' ? 'सेंसर डेटा (Mock)' : 'Sensor Data (Mock)'}</h3>
+                    <h3><ChartIcon size={20} className="section-icon" /> {t('sensor_data_mock')}</h3>
                     <div className="sensor-grid">
                         <div className="sensor-item">
                             <WaterIcon size={24} />
-                            <span className="sensor-label">{language === 'hi' ? 'मिट्टी नमी' : 'Soil Moisture'}</span>
+                            <span className="sensor-label">{t('soil_moisture')}</span>
                             <span className="sensor-value">{currentData.soilMoisture}%</span>
                         </div>
                         <div className="sensor-item">
                             <SunIcon size={24} />
-                            <span className="sensor-label">{language === 'hi' ? 'तापमान' : 'Temperature'}</span>
+                            <span className="sensor-label">{t('temperature_label')}</span>
                             <span className="sensor-value">{currentData.temperature}°C</span>
                         </div>
                         <div className="sensor-item">
                             <CloudRainIcon size={24} />
-                            <span className="sensor-label">{language === 'hi' ? 'बारिश संभावना' : 'Rain Chance'}</span>
+                            <span className="sensor-label">{t('rain_chance')}</span>
                             <span className="sensor-value">{currentData.rainProbability}%</span>
                         </div>
                         <div className="sensor-item">
                             <PowerIcon size={24} />
-                            <span className="sensor-label">{language === 'hi' ? 'बिजली' : 'Power'}</span>
+                            <span className="sensor-label">{t('power')}</span>
                             <span className="sensor-value">{currentData.powerAvailable ? '✅' : '❌'}</span>
                         </div>
                     </div>
@@ -268,16 +301,16 @@ function Simulate() {
                         <span className="thinking-dot"></span>
                         <span className="thinking-dot"></span>
                     </div>
-                    <p><AgentIcon size={20} className="thinking-icon" /> {language === 'hi' ? 'एजेंट विश्लेषण कर रहा है...' : 'Agent is analyzing...'}</p>
+                    <p><AgentIcon size={20} className="thinking-icon" /> {t('agent_analyzing')}</p>
                 </section>
             )}
 
             {/* Signal History */}
             <section className="signal-log glass-card">
-                <h3><SignalIcon size={20} className="section-icon" /> {language === 'hi' ? 'सिग्नल लॉग' : 'Signal Log'}</h3>
+                <h3><SignalIcon size={20} className="section-icon" /> {t('signal_log')}</h3>
                 <div className="signal-list" ref={signalLogRef}>
                     {signals.length === 0 ? (
-                        <p className="no-signals">{language === 'hi' ? 'सिमुलेशन शुरू करें' : 'Start simulation to see signals'}</p>
+                        <p className="no-signals">{t('start_simulation_hint')}</p>
                     ) : (
                         signals.map(signal => (
                             <div key={signal.id} className={`signal-item ${signal.decision.shouldIrrigate ? 'irrigate' : 'skip'}`}>
@@ -370,6 +403,9 @@ function Simulate() {
                     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
                     color: white;
                     box-shadow: 0 4px 15px var(--accent-glow);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
                 }
 
                 .simulate-btn.running {

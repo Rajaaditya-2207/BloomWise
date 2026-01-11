@@ -199,7 +199,7 @@ export async function runAgentLoop(userMessage, context = {}, history = []) {
 
         // Update memory with conversation
         agentMemory.addMessage('user', userMessage);
-        agentMemory.addMessage('assistant', finalText);
+        agentMemory.addMessage('assistant', finalText, reasoningSteps);
 
         return {
             success: true,
@@ -301,45 +301,66 @@ function getDemoAgentResponse(userMessage, context, error = null) {
         { type: 'tool_result', tool: 'calculate_irrigation', result: 'success', summary: 'Need 5.7mm (114,000 liters)', timestamp: new Date().toISOString() }
     ];
 
-    const message = isHindi
-        ? `🌾 **सिंचाई सलाह**
+    // Use actual context if available, otherwise defaults
+    const temp = context?.weather?.current?.temperature || 30;
+    const et0 = context?.weather?.current?.et0 || 5.2;
+    const cropName = context?.crop?.name || (isHindi ? 'गेहूं' : 'Wheat');
+    const cropStage = context?.crop?.daysAfterPlanting > 30 ? (isHindi ? 'विकास चरण' : 'development stage') : (isHindi ? 'शुरुआती चरण' : 'initial stage');
+    const kc = 1.1; // Demo fixed
+    const waterMm = (et0 * kc).toFixed(1);
+    const waterLiters = Math.round(waterMm * 10000 * (context?.farm?.areaHectares || 2)).toLocaleString();
+
+    // Check for specific API errors to show relevant messages
+    if (error && (error.includes('429') || error.toLowerCase().includes('quota') || error.toLowerCase().includes('rate limit'))) {
+        return {
+            success: false,
+            message: `⏳ **System Busy (Rate Limit)**\n\nThe AI service is currently receiving too many requests. Please **wait a moment** and try again.\n\n*(Error: ${error})*`,
+            reasoning: [],
+            toolCallCount: 0,
+            isDemo: false, // It's a real error, not a demo fallback
+            error: error
+        };
+    }
+
+    let message = '';
+
+    if (isHindi) {
+        message = `🌾 **सिंचाई सलाह**
 
 मैंने मौसम, फसल और मिट्टी का विश्लेषण किया:
 
 📊 **विश्लेषण:**
-- आज का ET₀: 5.2mm
-- गेहूं Kc (विकास चरण): 1.1
-- पानी की जरूरत: 5.7mm
+- आज का तापमान: ${temp}°C
+- आज का ET₀: ${et0}mm
+- ${cropName} Kc (${cropStage}): ${kc}
+- पानी की जरूरत: ${waterMm}mm
 
 💧 **सिफारिश:**
 ✅ **सिंचाई करें** - आज शाम 6 बजे
-- पानी: 114,000 लीटर (2 हेक्टेयर के लिए)
+- पानी: ${waterLiters} लीटर (${context?.farm?.areaHectares || 2} हेक्टेयर के लिए)
 - अवधि: ~45 मिनट
 
-⚠️ यह AI-जनित सलाह है। गंभीर निर्णयों के लिए स्थानीय KVK से परामर्श लें।
-
-📚 स्रोत: FAO-56, ICAR-IIWM
-
-जय किसान! 🙏`
-        : `🌾 **Irrigation Advice**
+⚠️ यह डेमो मोड है (API Key missing)।
+`;
+    } else {
+        message = `🌾 **Irrigation Advice**
 
 I analyzed the weather, crop, and soil conditions:
 
 📊 **Analysis:**
-- Today's ET₀: 5.2mm
-- Wheat Kc (development stage): 1.1
-- Water requirement: 5.7mm
+- Current Temp: ${temp}°C
+- Today's ET₀: ${et0}mm
+- ${cropName} Kc (${cropStage}): ${kc}
+- Water requirement: ${waterMm}mm
 
 💧 **Recommendation:**
 ✅ **Irrigate** - This evening at 6 PM
-- Water: 114,000 liters (for 2 hectares)
+- Water: ${waterLiters} liters (for ${context?.farm?.areaHectares || 2} hectares)
 - Duration: ~45 minutes
 
-⚠️ This is AI-generated advice. Consult local KVK for critical decisions.
-
-📚 Sources: FAO-56, ICAR-IIWM
-
-Jai Kisan! 🙏`;
+⚠️ This is Demo Mode (API Key missing or Invalid).
+`;
+    }
 
     return {
         success: true,
@@ -347,7 +368,7 @@ Jai Kisan! 🙏`;
         reasoning: reasoningSteps,
         toolCallCount: 3,
         isDemo: true,
-        error: error ? `API Error: ${error}` : null
+        error: error ? `API Error: ${error} ` : null
     };
 }
 

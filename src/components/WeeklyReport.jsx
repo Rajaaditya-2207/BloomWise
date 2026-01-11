@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp, useLanguage } from '../App';
 import { WaterIcon, ChartIcon, PlantIcon, CloudRainIcon, ArrowLeftIcon, MoneyIcon, DatabaseIcon } from './Icons';
@@ -13,8 +13,112 @@ function WeeklyReport() {
   const navigate = useNavigate();
   const [exportFormat, setExportFormat] = useState(null);
 
-  // Calculate water usage data with realistic variation
-  const calculateWaterData = () => {
+  const [waterData, setWaterData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    console.log('WeeklyReport: Effect triggered', { farm });
+    async function fetchData() {
+      // If preview mode or no farmer, use mock data
+      if (!farm?.id || farm?.isDemo) {
+        console.log('WeeklyReport: Using Mock Data', { farmId: farm?.id, isDemo: farm?.isDemo });
+        setWaterData(generateMockData());
+        setLoading(false);
+        return;
+      }
+
+      console.log('WeeklyReport: Fetching Real Data');
+
+      try {
+        // Fetch last 7 days logs
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 6);
+
+        const { data: logs, error } = await import('../services/supabase').then(m => m.supabase)
+          .from('irrigation_logs')
+          .select('*')
+          .eq('farmer_id', farm.id)
+          .gte('date', startDate.toISOString().split('T')[0]);
+
+        if (error) throw error;
+
+        if (!logs || logs.length === 0) {
+          // Fallback to mock if no real data yet
+          setWaterData(generateMockData());
+        } else {
+          setWaterData(processRealData(logs));
+        }
+      } catch (err) {
+        console.error('Failed to fetch report data:', err);
+        setWaterData(generateMockData());
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [farm]);
+
+  // Process Real Supabase Data
+  const processRealData = (logs) => {
+    const days = [];
+    let totalUsed = 0;
+    let totalSaved = 0;
+
+    // Group by date
+    const logsByDate = {};
+    logs.forEach(log => {
+      const dateStr = log.date; // YYYY-MM-DD
+      if (!logsByDate[dateStr]) {
+        logsByDate[dateStr] = { used: 0, saved: 0, reason: null };
+      }
+      logsByDate[dateStr].used += (log.water_used_liters || 0);
+      logsByDate[dateStr].saved += (log.water_saved_liters || 0);
+      // Keep last reason
+      if (log.water_saved_liters > 0) {
+        logsByDate[dateStr].reason = log.rain_avoided ? 'Rain Avoided' : 'Soil Moisture OK';
+      }
+    });
+
+    // Generate last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().split('T')[0];
+      const log = logsByDate[dateKey] || { used: 0, saved: 0, reason: null };
+
+      // Fixed = Used + Saved (Baseline)
+      const fixedWater = log.used + log.saved;
+
+      totalUsed += log.used;
+      totalSaved += log.saved;
+
+      days.push({
+        date: d,
+        dayName: d.toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'short' }),
+        dateStr: d.toLocaleDateString(language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' }),
+        fixedWater: fixedWater,
+        smartWater: log.used,
+        saved: log.saved,
+        skippedReason: log.reason,
+        rainProbability: 0
+      });
+    }
+
+    const totalFixed = days.reduce((sum, d) => sum + d.fixedWater, 0);
+
+    return {
+      days,
+      totalUsed,
+      totalSaved,
+      totalFixed,
+      percentSaved: totalFixed > 0 ? Math.round((totalSaved / totalFixed) * 100) : 0,
+      isRealData: true
+    };
+  };
+
+  // Calculate water usage data with realistic variation (MOCK)
+  const generateMockData = () => {
     const areaHectares = farm?.areaHectares || farm?.land_size_ha || 2;
     const baseWaterPerHa = 5000; // liters per hectare per day (baseline)
 
@@ -85,11 +189,13 @@ function WeeklyReport() {
       totalUsed,
       totalSaved,
       totalFixed,
-      percentSaved: totalFixed > 0 ? Math.round((totalSaved / totalFixed) * 100) : 0
+      percentSaved: totalFixed > 0 ? Math.round((totalSaved / totalFixed) * 100) : 0,
+      isRealData: false
     };
   };
 
-  const waterData = calculateWaterData();
+  if (loading) return <div className="p-4 text-center">Loading Report...</div>;
+  if (!waterData) return null;
 
   // Export to CSV
   const exportCSV = () => {
@@ -155,26 +261,32 @@ function WeeklyReport() {
     <div className="weekly-report">
       {/* Header */}
       <header className="report-header">
-        <button onClick={() => navigate('/')} className="back-btn">
+        <button onClick={() => navigate('/')} className="back-btn" aria-label="Back">
           <ArrowLeftIcon size={24} />
         </button>
-        <h1><ChartIcon size={28} style={{ marginRight: '0.5rem' }} /> {t('weekly_report')}</h1>
-        <p className="header-subtitle">{t('report_desc')}</p>
+        <div className="header-content">
+          <h1>{t('weekly_report')}</h1>
+          <p className="header-subtitle">{t('report_desc')}</p>
+        </div>
       </header>
 
       {/* Summary Cards */}
       <section className="summary-section">
         <div className="summary-grid">
-          <div className="summary-card glass-card active-card">
-            <div className="summary-icon"><WaterIcon size={32} /></div>
+          <div className="summary-card glass-card">
+            <div className="icon-wrapper water">
+              <WaterIcon size={28} />
+            </div>
             <div className="summary-content">
               <span className="summary-value">{(waterData.totalSaved / 1000).toFixed(1)}k</span>
               <span className="summary-label">{t('liters_saved')}</span>
             </div>
           </div>
 
-          <div className="summary-card glass-card percent-saved">
-            <div className="summary-icon"><ChartIcon size={32} /></div>
+          <div className="summary-card glass-card">
+            <div className="icon-wrapper chart">
+              <ChartIcon size={28} />
+            </div>
             <div className="summary-content">
               <span className="summary-value">{waterData.percentSaved}%</span>
               <span className="summary-label">{t('water_saved')}</span>
@@ -182,7 +294,9 @@ function WeeklyReport() {
           </div>
 
           <div className="summary-card glass-card">
-            <div className="summary-icon"><PlantIcon size={32} /></div>
+            <div className="icon-wrapper plant">
+              <PlantIcon size={28} />
+            </div>
             <div className="summary-content">
               <span className="summary-value">{(waterData.totalUsed / 1000).toFixed(1)}k</span>
               <span className="summary-label">{t('liters_used')}</span>
@@ -244,22 +358,15 @@ function WeeklyReport() {
             <span>{t('smart')}</span>
             <span>{t('saved')}</span>
           </div>
-          {waterData.days.map((day, index) => (
-            <div key={index} className={`table-row ${day.saved > 0 ? 'has-savings' : ''}`}>
-              <span className="day-cell">
-                <strong>{day.dayName}</strong>
-                <small>{day.dateStr}</small>
+          {waterData.days.map((day, i) => (
+            <div key={i} className="table-row">
+              <span className="day-name">
+                {day.dayName}
+                {day.skippedReason && <span className="reason-tag">{day.skippedReason}</span>}
               </span>
-              <span className="water-cell">{(day.fixedWater / 1000).toFixed(1)}k L</span>
-              <span className="water-cell smart">{(day.smartWater / 1000).toFixed(1)}k L</span>
-              <span className="saved-cell">
-                {day.saved > 0 ? (
-                  <>+{(day.saved / 1000).toFixed(1)}k L</>
-                ) : (
-                  '-'
-                )}
-                {day.skippedReason && <small className="reason">{day.skippedReason}</small>}
-              </span>
+              <span>{(day.fixedWater / 1000).toFixed(1)}k</span>
+              <span className="smart-val">{(day.smartWater / 1000).toFixed(1)}k</span>
+              <span className="saved-val">{(day.saved / 1000).toFixed(1)}k</span>
             </div>
           ))}
         </div>
@@ -280,79 +387,120 @@ function WeeklyReport() {
             {exportFormat === 'json' && <span className="check">✓</span>}
           </button>
         </div>
+
+        {/* Advanced Analytics Link */}
+        <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--glass-border)' }}>
+          <button
+            onClick={() => {
+              if (farm?.isDemo) {
+                navigate('/preview/analytics');
+              } else {
+                navigate('/analytics');
+              }
+            }}
+            className="export-btn"
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }}
+          >
+            <ChartIcon size={18} />
+            {t('view_detailed_analytics') || 'View Detailed Analytics (Looker)'} <ArrowLeftIcon size={16} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+        </div>
       </section>
 
       {/* Disclaimer */}
       <div className="disclaimer">
-        <p>
-          <p>
-            {t('report_disclaimer')}
-          </p>
-        </p>
+        <div className="disclaimer">
+          <p>{t('report_disclaimer')}</p>
+        </div>
       </div>
 
       <style>{`
         .weekly-report {
           min-height: 100vh;
-          padding: 1rem;
-          padding-bottom: 100px;
+          padding: 1.5rem 1rem 6rem;
+          max-width: 800px;
+          margin: 0 auto;
         }
 
         .report-header {
           display: flex;
           align-items: center;
           gap: 1rem;
-          padding: 1rem 1.5rem;
-          margin-bottom: 1.5rem;
+          margin-bottom: 2rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid var(--glass-border);
         }
 
         .report-header .back-btn {
           color: var(--text-primary);
           display: flex;
           align-items: center;
-          padding: 0.5rem;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
-          transition: background 0.2s;
+          background: var(--bg-glass);
+          border: 1px solid var(--glass-border);
+          transition: all 0.2s;
+          flex-shrink: 0;
         }
 
         .report-header .back-btn:hover {
-          background: var(--glass-bg);
+          background: var(--glass-hover);
+          transform: translateX(-2px);
         }
 
         .header-content h1 {
           margin: 0;
           font-size: 1.5rem;
+          font-weight: 700;
           color: var(--text-primary);
+          line-height: 1.2;
         }
 
-        .header-content p.header-subtitle {
-          margin: 0;
+        .header-subtitle {
+          margin: 0.25rem 0 0;
           color: var(--text-secondary);
           font-size: 0.875rem;
-          margin-left: 0.5rem;
         }
 
         .summary-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 1rem;
-          margin-bottom: 1.5rem;
+          margin-bottom: 2rem;
         }
 
         .summary-card {
-          padding: 1rem;
-          text-align: center;
+          padding: 1.25rem 1rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
           transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
         }
 
-        .summary-card.active-card {
-          border: 1px solid var(--accent-color);
-          box-shadow: 0 0 15px rgba(var(--accent-rgb), 0.2);
+
+
+        .icon-wrapper {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 0.25rem;
         }
 
-        .summary-icon {
-          font-size: 2rem;
-          margin-bottom: 0.5rem;
+        .icon-wrapper.water { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .icon-wrapper.chart { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .icon-wrapper.plant { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+        .summary-content {
+          text-align: center;
         }
 
         .summary-value {
@@ -360,15 +508,15 @@ function WeeklyReport() {
           font-size: 1.5rem;
           font-weight: 700;
           color: var(--text-primary);
+          line-height: 1;
+          margin-bottom: 0.25rem;
         }
 
         .summary-label {
           font-size: 0.75rem;
           color: var(--text-secondary);
-        }
-
-        .summary-card.percent-saved .summary-value {
-          color: var(--text-primary);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
 
         .chart-section, .daily-details, .export-section {
@@ -376,18 +524,22 @@ function WeeklyReport() {
           margin-bottom: 1.5rem;
         }
 
-        .chart-section h2, .daily-details h2, .export-section h2 {
-          margin: 0 0 1rem;
-          font-size: 1.1rem;
+        .chart-section h3, .daily-details h2, .export-section h2 {
+          margin: 0 0 1.25rem;
+          font-size: 1.125rem;
           color: var(--text-primary);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
         }
 
         .bar-chart {
           display: flex;
-          justify-content: space-around;
+          justify-content: space-between;
           align-items: flex-end;
-          height: 150px;
-          gap: 0.5rem;
+          height: 180px;
+          padding-bottom: 0.5rem;
+          margin-bottom: 1rem;
         }
 
         .bar-group {
@@ -395,83 +547,51 @@ function WeeklyReport() {
           flex-direction: column;
           align-items: center;
           flex: 1;
+          position: relative;
         }
 
         .bars {
           display: flex;
           gap: 4px;
           align-items: flex-end;
-          height: 120px;
+          height: 140px;
+          width: 100%;
+          justify-content: center;
         }
 
         .bar {
-          width: 16px;
+          width: 8px; /* Thinner bars */
           border-radius: 4px 4px 0 0;
-          transition: height 0.3s ease;
+          transition: height 0.5s ease;
+          min-height: 4px;
         }
 
-        .fixed-bar {
-          background: rgba(128, 128, 128, 0.5);
-        }
+        [data-theme="dark"] .fixed-bar { background: rgba(255, 255, 255, 0.15); }
+        [data-theme="light"] .fixed-bar { background: #e5e7eb; }
 
-        /* Dark theme: green for saved, orange for moderate, default accent for regular */
-        [data-theme="dark"] .smart-bar {
-          background: #10b981;
-        }
+        [data-theme="dark"] .smart-bar { background: var(--accent-primary); }
+        [data-theme="light"] .smart-bar { background: var(--accent-primary); }
 
-        [data-theme="dark"] .smart-bar.moderate {
-          background: #f59e0b;
-        }
-
-        [data-theme="dark"] .smart-bar.no-saving {
-          background: #ef4444;
-        }
-
-        /* Light theme: purple/lavender for better visibility */
-        [data-theme="light"] .smart-bar {
-          background: #8b5cf6;
-        }
-
-        [data-theme="light"] .fixed-bar {
-          background: #d1d5db;
-        }
-
-        /* Legend color dots */
-        .dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          display: inline-block;
-        }
-
-        .dot.fixed {
-          background: rgba(128, 128, 128, 0.5);
-        }
-
-        [data-theme="light"] .dot.fixed {
-          background: #d1d5db;
-        }
-
-        .dot.smart {
-          background: var(--accent-color);
-        }
-
-        [data-theme="light"] .dot.smart {
-          background: #8b5cf6;
-        }
-
-        [data-theme="dark"] .dot.smart {
-          background: #10b981;
-        }
+        .smart-bar.moderate { background-color: #f59e0b !important; }
+        .smart-bar.no-saving { background-color: #ef4444 !important; }
 
         .bar-label {
-          margin-top: 0.5rem;
-          font-size: 0.7rem;
+          margin-top: 0.75rem;
+          font-size: 0.75rem;
           color: var(--text-secondary);
+          font-weight: 500;
         }
 
         .rain-badge {
-          font-size: 0.8rem;
+          position: absolute;
+          top: -20px;
+          color: #3b82f6;
+          animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
         }
 
         .chart-legend {
@@ -487,95 +607,72 @@ function WeeklyReport() {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          font-size: 0.8rem;
+          font-size: 0.875rem;
           color: var(--text-secondary);
         }
 
-        .legend-color {
-          width: 12px;
-          height: 12px;
-          border-radius: 2px;
+        .dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
         }
 
-        .legend-color.fixed {
-          background: rgba(255, 255, 255, 0.3);
-        }
-
-        .legend-color.smart {
-          background: var(--accent-color);
-        }
+        .dot.fixed { background: #9ca3af; }
+        .dot.smart { background: var(--accent-primary); }
 
         .details-table {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .table-header, .table-row {
-          display: grid;
-          grid-template-columns: 1.5fr 1fr 1fr 1fr;
-          gap: 0.5rem;
-          padding: 0.75rem;
-          align-items: center;
+          width: 100%;
         }
 
         .table-header {
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr 1fr;
+          padding: 0.75rem 0.5rem;
           font-size: 0.75rem;
-          color: var(--text-secondary);
+          font-weight: 600;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          color: var(--text-muted);
           border-bottom: 1px solid var(--glass-border);
         }
 
         .table-row {
-          background: var(--glass-bg);
-          border-radius: 8px;
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr 1fr;
+          padding: 1rem 0.5rem;
           font-size: 0.875rem;
-        }
-
-        .table-row.has-savings {
-          border-left: 3px solid var(--accent-color);
-        }
-
-        .day-cell {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .day-cell strong {
-          color: var(--text-primary);
-        }
-
-        .day-cell small {
           color: var(--text-secondary);
-          font-size: 0.7rem;
+          border-bottom: 1px solid var(--glass-border);
+          align-items: center;
         }
 
-        .water-cell {
-          color: var(--text-secondary);
+        .table-row:last-child {
+          border-bottom: none;
         }
 
-        .water-cell.smart {
+        .day-name {
           color: var(--text-primary);
           font-weight: 500;
-        }
-
-        .saved-cell {
-          color: var(--accent-color);
-          font-weight: 600;
           display: flex;
           flex-direction: column;
+          gap: 0.25rem;
         }
 
-        .saved-cell .reason {
-          font-size: 0.65rem;
-          font-weight: 400;
-          opacity: 0.8;
+        .reason-tag {
+          font-size: 0.7rem;
+          color: var(--accent-blue);
+          background: rgba(59, 130, 246, 0.1);
+          padding: 2px 6px;
+          border-radius: 4px;
+          width: fit-content;
         }
+
+        .smart-val { color: var(--accent-primary); font-weight: 600; }
+        .saved-val { color: var(--accent-green); }
 
         .export-buttons {
           display: flex;
           gap: 1rem;
+          margin-bottom: 1rem;
         }
 
         .export-btn {
@@ -584,55 +681,57 @@ function WeeklyReport() {
           align-items: center;
           justify-content: center;
           gap: 0.5rem;
-          padding: 1rem;
-          border: none;
-          border-radius: 12px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .export-btn.csv {
-          background: var(--accent-color);
-          color: white;
-        }
-
-        /* Light theme: purple/lavender buttons */
-        [data-theme="light"] .export-btn.csv {
-          background: #8b5cf6;
-          color: white;
-        }
-
-        [data-theme="light"] .export-btn.json {
-          background: #e9d5ff;
-          color: #6b21a8;
-          border: 1px solid #c4b5fd;
-        }
-
-        .export-btn.json {
-          background: var(--glass-bg);
-          color: var(--text-primary);
+          padding: 0.75rem;
+          background: var(--bg-glass);
           border: 1px solid var(--glass-border);
+          border-radius: var(--radius-md);
+          color: var(--text-primary);
+          transition: all 0.2s;
+          cursor: pointer;
         }
 
         .export-btn:hover {
-          transform: translateY(-2px);
+          background: var(--glass-hover);
+          border-color: var(--accent-primary);
         }
 
-        .export-btn .check {
-          color: #10b981;
+        .check {
+          color: var(--accent-green);
           font-weight: bold;
         }
 
-        .disclaimer {
-          text-align: center;
-          padding: 1rem;
+        /* Light mode button styles */
+        [data-theme="light"] .export-btn {
+          background: #f3f4f6;
+          border: 1px solid #d1d5db;
+          color: #1f2937;
         }
 
-        .disclaimer p {
-          margin: 0.5rem 0;
+        [data-theme="light"] .export-btn:hover {
+          background: #e5e7eb;
+          border-color: var(--accent-primary);
+        }
+
+        .disclaimer {
+          margin-top: 2rem;
+          text-align: center;
           font-size: 0.75rem;
-          color: var(--text-secondary);
+          color: var(--text-muted);
+          opacity: 0.7;
+        }
+
+        @media (max-width: 600px) {
+          .summary-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .bar-chart {
+            height: 150px;
+          }
+          
+          .bar {
+            width: 8px;
+          }
         }
       `}</style>
     </div>

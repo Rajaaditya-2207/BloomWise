@@ -156,18 +156,31 @@ class BackgroundAgent {
                 farmerId: context.farmerId
             });
 
-            // Step 6: Log to database
+            // Step 6: Log to database (if not already logged for today)
             try {
-                await supabase.from('irrigation_logs').insert([{
-                    farmer_id: context.farmerId,
-                    date: new Date().toISOString().split('T')[0],
-                    water_used_liters: action === 'IRRIGATE' ? irrigation.recommendation?.totalLiters : 0,
-                    water_saved_liters: action === 'SKIP' ? irrigation.recommendation?.totalLiters : 0,
-                    rain_avoided: action === 'SKIP' && weather.rainAlerts?.length > 0,
-                    et0_mm: et0,
-                    kc_value: kc,
-                    crop_stage: cropInfo.growthStage
-                }]);
+                // Check for existing log for today
+                const today = new Date().toISOString().split('T')[0];
+                const { data: existingLogs } = await supabase
+                    .from('irrigation_logs')
+                    .select('id')
+                    .eq('farmer_id', context.farmerId)
+                    .eq('date', today);
+
+                if (!existingLogs || existingLogs.length === 0) {
+                    await supabase.from('irrigation_logs').insert([{
+                        farmer_id: context.farmerId,
+                        date: today,
+                        water_used_liters: action === 'IRRIGATE' ? irrigation.recommendation?.totalLiters : 0,
+                        water_saved_liters: action === 'SKIP' ? irrigation.recommendation?.totalLiters : 0,
+                        rain_avoided: action === 'SKIP' && weather.rainAlerts?.length > 0,
+                        et0_mm: et0,
+                        kc_value: kc,
+                        crop_stage: cropInfo.growthStage
+                    }]);
+                    console.log(`[BackgroundAgent] Logged action: ${action} for ${today}`);
+                } else {
+                    console.log(`[BackgroundAgent] Already logged for today (${today}), skipping DB insert`);
+                }
             } catch (e) {
                 console.warn('Failed to log irrigation:', e);
             }

@@ -131,10 +131,11 @@ class AgentMemory {
     /**
      * Add a message to conversation history
      */
-    addMessage(role, content) {
+    addMessage(role, content, reasoning = null) {
         this.context.conversationHistory.push({
             role,
             content,
+            reasoning,
             timestamp: new Date().toISOString()
         });
 
@@ -152,7 +153,8 @@ class AgentMemory {
     getConversationHistory() {
         return this.context.conversationHistory.map(msg => ({
             role: msg.role,
-            content: msg.content
+            content: msg.content,
+            reasoning: msg.reasoning
         }));
     }
 

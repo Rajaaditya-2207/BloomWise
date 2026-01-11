@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../App';
 import { EyeIcon, ProjectLogo } from './Icons';
+import LanguageSelector from './LanguageSelector';
 
 function LandingPage() {
     const navigate = useNavigate();
@@ -9,6 +10,9 @@ function LandingPage() {
 
     return (
         <div className="landing-page">
+            <div className="landing-lang-toggle">
+                <LanguageSelector />
+            </div>
             <div className="landing-content glass-card">
                 <div className="logo-container">
                     <ProjectLogo size={48} style={{ color: 'white' }} />
@@ -50,6 +54,13 @@ function LandingPage() {
                     justify-content: center;
                     background: var(--bg-gradient);
                     padding: 1rem;
+                    position: relative;
+                }
+
+                .landing-lang-toggle {
+                    position: absolute;
+                    top: 1rem;
+                    right: 1rem;
                 }
 
                 .landing-content {

@@ -347,9 +347,9 @@ export const toolHandlers = {
 
         // Log to Supabase if available
         try {
-            if (farmerId) {
+            if (farmerId && false) { // Disabled for demo to prevent 404s
                 const { error } = await supabase.from('signal_history').insert([signal]);
-                if (error) console.warn('Failed to log signal:', error);
+                if (error) console.log('Signal logging skipped (Demo/Offline mode):', error.message || error);
             }
         } catch (e) {
             console.warn('Supabase not available, signal logged locally');

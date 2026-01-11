@@ -46,9 +46,10 @@ export async function sendSignal(farmerId, signalData) {
 
     // Log to database
     try {
+        if (true) return; // Disabled for demo/offline
         const { error } = await supabase.from('signal_history').insert([signal]);
         if (error) {
-            console.error('Failed to log signal:', error);
+            console.log('Signal persistence skipped (Demo/Offline mode):', error.message || error);
             signal.signal_status = SIGNAL_STATUS.FAILED;
         }
     } catch (e) {

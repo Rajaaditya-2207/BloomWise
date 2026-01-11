@@ -12,7 +12,14 @@ function Navigation({ isPreviewMode = false }) {
     const basePath = isPreviewMode ? '/preview' : '';
 
     const navItems = [
-        { path: basePath || '/', actualPath: basePath || '/', icon: HomeIcon, label: t('nav_home'), isHome: true },
+        // Home logic: In preview, use /preview/home. In user mode, use /home (since / is now welcome)
+        {
+            path: isPreviewMode ? '/preview/home' : '/home',
+            actualPath: isPreviewMode ? '/preview/home' : '/home',
+            icon: HomeIcon,
+            label: t('nav_home'),
+            isHome: true
+        },
         { path: `${basePath}/chat`, actualPath: `${basePath}/chat`, icon: AgentIcon, label: t('nav_chat') },
         { path: `${basePath}/simulate`, actualPath: `${basePath}/simulate`, icon: SignalIcon, label: t('nav_simulate') || 'Simulate' },
         { path: `${basePath}/report`, actualPath: `${basePath}/report`, icon: ReportIcon, label: t('nav_report') },
@@ -23,19 +30,13 @@ function Navigation({ isPreviewMode = false }) {
     const isItemActive = (itemPath, isHome = false) => {
         const currentPath = location.pathname;
 
-        if (isPreviewMode) {
-            if (isHome) {
-                // Home is only active on exact /preview path
-                return currentPath === '/preview';
-            }
+        if (isHome) {
+            // Home active if exact match
             return currentPath === itemPath;
         }
 
-        if (isHome) {
-            // Home is only active on exact / path
-            return currentPath === '/';
-        }
-        return currentPath === itemPath;
+        // Other items active if path starts with itemPath (e.g. /preview/report/analytics active for Report tab)
+        return currentPath.startsWith(itemPath);
     };
 
     return (

@@ -69,7 +69,7 @@ function Dashboard() {
         action: 'irrigate',
         color: 'safe',
         message: t('irrigate_now'),
-        detail: `Irrigate this evening. ET₀: ${todayEt0.toFixed(1)}mm`,
+        detail: `${t('irrigate_evening')}. ET₀: ${todayEt0.toFixed(1)}mm`,
         icon: getRecommendationIcon('high', false)
       };
     }
@@ -173,7 +173,7 @@ function Dashboard() {
                 <>
                   <span className="title">{t('power_next_slot')}</span>
                   <span className="subtitle">
-                    ⏰ {t('power_starts_at')} {powerStatus.nextSlot?.start}
+                    - {t('power_starts_at')} {powerStatus.nextSlot?.start}
                   </span>
                 </>
               )}

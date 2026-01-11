@@ -7,12 +7,14 @@ import FarmSetup from './components/FarmSetup';
 import IrrigationSchedule from './components/IrrigationSchedule';
 import WhatsAppChat from './components/WhatsAppChat';
 import WeeklyReport from './components/WeeklyReport';
+import { ProjectLogo } from './components/Icons';
 import Navigation from './components/Navigation';
 import OfflineIndicator from './components/OfflineIndicator';
 import Settings from './components/Settings';
 import FarmerRegistration from './components/FarmerRegistration';
 import SignalHistory from './components/SignalHistory';
-import LookerDashboard from './components/LookerDashboard';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import AnalyticsPage from './components/AnalyticsPage';
 import LandingPage from './components/LandingPage';
 import SignIn from './components/SignIn';
 import Simulate from './components/Simulate';
@@ -50,7 +52,8 @@ const MOCK_FARM_PREVIEW = {
     water_source: 'borewell',
     irrigation_method: 'drip',
     latitude: 26.8467,
-    longitude: 80.9462
+    longitude: 80.9462,
+    isDemo: true
 };
 
 function App() {
@@ -73,10 +76,16 @@ function App() {
     useEffect(() => {
         // Handle Preview Routes specifically (any path starting with /preview)
         if (location.pathname.startsWith('/preview')) {
-            console.log('Entering Preview Mode');
-            setFarm(MOCK_FARM_PREVIEW);
-            setIsRegistered(true);
-            setLoading(false);
+            const minLoadTime = new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Wait for splash screen regardless of preview
+            (async () => {
+                await minLoadTime;
+                setFarm(MOCK_FARM_PREVIEW);
+                setIsRegistered(true);
+                setLoading(false);
+            })();
+
             return; // Skip normal initialization
         }
 
@@ -121,26 +130,40 @@ function App() {
     }, [farm?.regionId, farm?.state]);
 
     async function initializeApp() {
+        const minLoadTime = new Promise(resolve => setTimeout(resolve, 2000));
+
         try {
             // Check if farmer is registered in agent memory
+            let foundFarm = null;
+
             if (agentMemory.hasFarmer()) {
                 const context = agentMemory.getContext();
-                setFarm(context.farm);
-                setIsRegistered(true);
+                foundFarm = context.farm;
             } else {
                 // Try to get cached farm data (legacy)
                 const cachedFarm = getCachedFarm();
                 if (cachedFarm?.data) {
-                    setFarm(cachedFarm.data);
-                    setIsRegistered(true);
-                } else {
-                    setIsRegistered(false);
+                    foundFarm = cachedFarm.data;
+                }
+            }
+
+            // Important: If data is demo/preview, treat as NOT registered for persistent session
+            if (foundFarm && !foundFarm.isDemo) {
+                setFarm(foundFarm);
+                setIsRegistered(true);
+            } else {
+                setIsRegistered(false);
+                // Optionally clear invalid demo data from storage if needed, but ignoring it is safer
+                if (foundFarm?.isDemo) {
+                    console.log('Clearing leftover demo data from session');
+                    setFarm(null);
                 }
             }
         } catch (error) {
             console.error('Failed to initialize:', error);
             setIsRegistered(false);
         } finally {
+            await minLoadTime; // Wait for minimum 2s
             setLoading(false);
         }
     }
@@ -169,8 +192,11 @@ function App() {
 
     function handleFarmUpdate(updatedFarm) {
         setFarm(updatedFarm);
-        cacheFarm(updatedFarm);
-        agentMemory.updateFarm(updatedFarm);
+        // Only persist if NOT demo data
+        if (!updatedFarm?.isDemo) {
+            cacheFarm(updatedFarm);
+            agentMemory.updateFarm(updatedFarm);
+        }
     }
 
     // Handle registration complete
@@ -217,9 +243,11 @@ function App() {
         return (
             <div className="loading-screen">
                 <div className="loading-content">
-                    <span className="loading-icon">🌾</span>
+                    <div className="loading-icon-wrapper">
+                        <ProjectLogo size={64} style={{ color: 'var(--text-primary)' }} />
+                    </div>
                     <h1>BloomWise</h1>
-                    <p>Loading...</p>
+                    <p>{t('loading')}</p>
                     <div className="loading-spinner"></div>
                 </div>
                 <style>{`
@@ -228,16 +256,19 @@ function App() {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #059669 0%, #047857 100%);
-            color: white;
+            background: var(--bg-gradient);
+            color: var(--text-primary);
           }
           .loading-content {
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
           }
-          .loading-icon {
-            font-size: 4rem;
-            display: block;
+          .loading-icon-wrapper {
             margin-bottom: 1rem;
+            animation: bounce 2s infinite;
+            color: var(--accent-primary);
           }
           .loading-content h1 {
             font-size: 2rem;
@@ -246,8 +277,8 @@ function App() {
           .loading-spinner {
             width: 40px;
             height: 40px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top-color: white;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent-primary);
             border-radius: 50%;
             margin: 1rem auto;
             animation: spin 1s linear infinite;
@@ -255,8 +286,13 @@ function App() {
           @keyframes spin {
             to { transform: rotate(360deg); }
           }
+          @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+            40% {transform: translateY(-10px);}
+            60% {transform: translateY(-5px);}
+          }
         `}</style>
-            </div>
+            </div >
         );
     }
 
@@ -269,7 +305,7 @@ function App() {
                         {isOffline && <OfflineIndicator />}
 
                         {/* Main Content */}
-                        <main className="app-main" style={{ paddingBottom: (location.pathname === '/chat' || location.pathname === '/preview/chat') ? '0' : '80px' }}>
+                        <main className="app-main" style={{ paddingBottom: (location.pathname === '/chat' || location.pathname === '/preview/chat' || location.pathname.includes('/analytics')) ? '0' : '80px' }}>
                             <Routes>
                                 {/* Registration route - shown if not registered */}
                                 <Route
@@ -277,21 +313,33 @@ function App() {
                                     element={<FarmerRegistration onComplete={handleRegistrationComplete} />}
                                 />
 
-                                {/* Protected routes - redirect to welcome if not registered */}
+                                {/* Public Welcome Page - ALWAYS Welcome unless logged in */}
                                 <Route
                                     path="/"
-                                    element={isRegistered ? <Dashboard /> : <Navigate to="/welcome" replace />}
+                                    element={<LandingPage />}
+                                />
+
+                                {/* User Routes - Authenticated */}
+                                <Route
+                                    path="/home"
+                                    element={isRegistered ? <Dashboard /> : <Navigate to="/" replace />}
                                 />
                                 <Route
                                     path="/welcome"
-                                    element={isRegistered ? <Navigate to="/" replace /> : <LandingPage />}
+                                    element={<LandingPage />}
                                 />
                                 <Route
                                     path="/signin"
-                                    element={isRegistered ? <Navigate to="/" replace /> : <SignIn />}
+                                    element={isRegistered ? <Navigate to="/home" replace /> : <SignIn />}
                                 />
+
+                                {/* Preview Routes - Explicit Paths */}
                                 <Route
                                     path="/preview"
+                                    element={<Navigate to="/preview/home" replace />}
+                                />
+                                <Route
+                                    path="/preview/home"
                                     element={<Dashboard />}
                                 />
                                 <Route
@@ -315,46 +363,72 @@ function App() {
                                     element={<Settings />}
                                 />
                                 <Route
-                                    path="/schedule"
-                                    element={isRegistered ? <IrrigationSchedule /> : <Navigate to="/welcome" replace />}
+                                    path="/preview/analytics"
+                                    element={<AnalyticsPage />}
                                 />
                                 <Route
-                                    path="/chat"
-                                    element={isRegistered ? <WhatsAppChat /> : <Navigate to="/welcome" replace />}
+                                    path="/preview/analytics/water"
+                                    element={<AnalyticsDashboard type="waterUsage" />}
                                 />
                                 <Route
-                                    path="/farm"
-                                    element={isRegistered ? <FarmSetup /> : <Navigate to="/welcome" replace />}
+                                    path="/preview/analytics/crop"
+                                    element={<AnalyticsDashboard type="cropGrowth" />}
                                 />
                                 <Route
-                                    path="/report"
-                                    element={isRegistered ? <WeeklyReport /> : <Navigate to="/welcome" replace />}
-                                />
-                                <Route
-                                    path="/settings"
-                                    element={isRegistered ? <Settings /> : <Navigate to="/welcome" replace />}
+                                    path="/preview/analytics/agent"
+                                    element={<AnalyticsDashboard type="agentDecisions" />}
                                 />
 
-                                {/* New routes */}
-                                <Route
-                                    path="/signals"
-                                    element={isRegistered ? <SignalHistory /> : <Navigate to="/welcome" replace />}
-                                />
-                                <Route
-                                    path="/simulate"
-                                    element={isRegistered ? <Simulate /> : <Navigate to="/welcome" replace />}
-                                />
+                                {/* Legacy /preview/simulate and others if needed, but sticking to requested list */}
                                 <Route
                                     path="/preview/simulate"
                                     element={<Simulate />}
                                 />
+
+                                {/* User Feature Routes */}
                                 <Route
-                                    path="/analytics/crops"
-                                    element={isRegistered ? <LookerDashboard type="cropGrowth" /> : <Navigate to="/welcome" replace />}
+                                    path="/schedule"
+                                    element={isRegistered ? <IrrigationSchedule /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/chat"
+                                    element={isRegistered ? <WhatsAppChat /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/farm"
+                                    element={isRegistered ? <FarmSetup /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/report"
+                                    element={isRegistered ? <WeeklyReport /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/settings"
+                                    element={isRegistered ? <Settings /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/signals"
+                                    element={isRegistered ? <SignalHistory /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/simulate"
+                                    element={isRegistered ? <Simulate /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/analytics"
+                                    element={isRegistered ? <AnalyticsPage /> : <Navigate to="/" replace />}
                                 />
                                 <Route
                                     path="/analytics/water"
-                                    element={isRegistered ? <LookerDashboard type="waterUsage" /> : <Navigate to="/welcome" replace />}
+                                    element={isRegistered ? <AnalyticsDashboard type="waterUsage" /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/analytics/crop"
+                                    element={isRegistered ? <AnalyticsDashboard type="cropGrowth" /> : <Navigate to="/" replace />}
+                                />
+                                <Route
+                                    path="/analytics/agent"
+                                    element={isRegistered ? <AnalyticsDashboard type="agentDecisions" /> : <Navigate to="/" replace />}
                                 />
                             </Routes>
                         </main>

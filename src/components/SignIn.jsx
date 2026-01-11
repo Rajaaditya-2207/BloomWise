@@ -5,6 +5,7 @@ import { agentMemory } from '../services/agentMemory';
 import { t } from '../utils/translations';
 import { supabase, signInWithEmailOtp, verifyEmailOtp } from '../services/supabase';
 import { ArrowLeftIcon } from './Icons';
+import LanguageSelector from './LanguageSelector';
 
 function SignIn() {
     const navigate = useNavigate();
@@ -33,7 +34,7 @@ function SignIn() {
 
     const handleSendEmailOtp = async () => {
         if (!email.includes('@')) {
-            setError(t('invalid_credentials')); // 'Invalid Email' localized
+            setError(t('invalid_credentials'));
             return;
         }
         setLoading(true);
@@ -48,7 +49,7 @@ function SignIn() {
 
             if (error || !data) {
                 // If not found in DB, they are not registered
-                throw new Error(t('account_not_found') || 'Account not found. Please register.');
+                throw new Error(t('account_not_found'));
             }
 
             // If found, send "Mock" OTP
@@ -98,14 +99,14 @@ function SignIn() {
                     .single();
 
                 if (farmerError || !farmerData) {
-                    throw new Error('No farmer account found with this email.');
+                    throw new Error(t('no_account_email'));
                 }
                 farmer = farmerData;
             }
 
             // Success: Set Memory & Update App State
             agentMemory.setFarmer(farmer);
-            window.location.href = '/'; // Reload to refresh App state (isRegistered)
+            window.location.href = '/';
 
         } catch (err) {
             console.error('Login error:', err);
@@ -123,18 +124,22 @@ function SignIn() {
 
                 <h1 className="signin-title">BloomWise {t('sign_in')}</h1>
 
+                <div className="signin-lang-toggle">
+                    <LanguageSelector />
+                </div>
+
                 <div className="login-tabs">
                     <button
                         className={`tab-btn ${loginMethod === 'phone' ? 'active' : ''}`}
                         onClick={() => { setLoginMethod('phone'); setOtpSent(false); setError(''); setPassword(''); }}
                     >
-                        Phone
+                        {t('phone_login')}
                     </button>
                     <button
                         className={`tab-btn ${loginMethod === 'email' ? 'active' : ''}`}
                         onClick={() => { setLoginMethod('email'); setOtpSent(false); setError(''); setPassword(''); }}
                     >
-                        Email OTP
+                        {t('email_login')}
                     </button>
                 </div>
 
@@ -143,7 +148,7 @@ function SignIn() {
                         /* Phone Inputs */
                         <>
                             <div className="form-group">
-                                <label>{t('phone') || 'Mobile Number'}</label>
+                                <label>{t('phone')}</label>
                                 <input
                                     type="tel"
                                     value={mobile}
@@ -156,12 +161,12 @@ function SignIn() {
                             </div>
                             {otpSent && (
                                 <div className="form-group">
-                                    <label>OTP</label>
+                                    <label>{t('otp')}</label>
                                     <input
                                         type="text"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="Enter Mock OTP (Any)"
+                                        placeholder={t('enter_mock_otp')}
                                         className="glass-input"
                                         required
                                     />
@@ -172,12 +177,12 @@ function SignIn() {
                         /* Email Inputs */
                         <>
                             <div className="form-group">
-                                <label>Email Address</label>
+                                <label>{t('email_address')}</label>
                                 <input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Enter your email"
+                                    placeholder={t('enter_email')}
                                     required
                                     className="glass-input"
                                     disabled={otpSent}
@@ -185,12 +190,12 @@ function SignIn() {
                             </div>
                             {otpSent && (
                                 <div className="form-group">
-                                    <label>OTP (Sent to email)</label>
+                                    <label>{t('otp_sent_email')}</label>
                                     <input
                                         type="text"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="6-digit OTP"
+                                        placeholder={t('enter_6_digit_otp')}
                                         className="glass-input"
                                         required
                                     />
@@ -208,7 +213,7 @@ function SignIn() {
                             disabled={loading}
                             onClick={loginMethod === 'phone' ? handleSendPhoneOtp : handleSendEmailOtp}
                         >
-                            {loading ? 'Sending...' : 'Send OTP'}
+                            {loading ? t('sending') : t('send_otp')}
                         </button>
                     ) : (
                         <button
@@ -216,7 +221,7 @@ function SignIn() {
                             className="btn-primary signin-btn"
                             disabled={loading}
                         >
-                            {loading ? 'Verifying...' : 'Verify & Login'}
+                            {loading ? t('verifying') : t('verify_login')}
                         </button>
                     )}
                 </form>
@@ -260,10 +265,16 @@ function SignIn() {
                 .signin-title {
                     text-align: center;
                     font-size: 1.8rem;
-                    margin-bottom: 2rem;
+                    margin-bottom: 0.5rem;
                     background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
+                }
+
+                .signin-lang-toggle {
+                    display: flex;
+                    justify-content: center;
+                    margin-bottom: 1.5rem;
                 }
 
                 .login-tabs {

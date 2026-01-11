@@ -3,22 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useApp, useLanguage } from '../App';
 import { runAgentLoop } from '../services/agentLoop';
 import { agentMemory } from '../services/agentMemory';
+import ReasoningLog from './ReasoningLog';
+import { ArrowLeftIcon, MenuIcon, SendIcon, SmileIcon, SignalIcon, TrashIcon, AgentIcon } from './Icons';
 
 const EMOJI_LIST = ['👍', '💧', '🌾', '☀️', '🌧️', '⚡', '🙏', '✅', '❌', '❓'];
-
-// Tool icons for reasoning display
-const TOOL_ICONS = {
-  'get_weather': '🌤️',
-  'get_crop_info': '🌾',
-  'get_soil_info': '🏔️',
-  'calculate_irrigation': '💧',
-  'get_power_schedule': '⚡',
-  'send_irrigation_signal': '📡',
-  'generate_weekly_report': '📊',
-  'get_farmer_context': '👨‍🌾'
-};
-
-import { ArrowLeftIcon, MenuIcon, SendIcon, SmileIcon, SignalIcon, TrashIcon, AgentIcon } from './Icons';
 
 // Simple markdown parser for chat messages
 const parseMarkdown = (text) => {
@@ -52,7 +40,6 @@ function WhatsAppChat() {
   const [currentTool, setCurrentTool] = useState(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [expandedReasoning, setExpandedReasoning] = useState({});
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -151,58 +138,7 @@ function WhatsAppChat() {
     });
   };
 
-  const toggleReasoning = (messageId) => {
-    setExpandedReasoning(prev => ({
-      ...prev,
-      [messageId]: !prev[messageId]
-    }));
-  };
 
-  // Render reasoning steps
-  const renderReasoning = (reasoning, messageId) => {
-    if (!reasoning || reasoning.length === 0) return null;
-
-    const isExpanded = expandedReasoning[messageId];
-    const toolCalls = reasoning.filter(r => r.type === 'tool_call');
-
-    return (
-      <div className="reasoning-container">
-        <button
-          className="reasoning-toggle"
-          onClick={() => toggleReasoning(messageId)}
-        >
-          <span className="reasoning-icon">🧠</span>
-          <span>{isExpanded ? 'Hide' : 'Show'} Reasoning ({toolCalls.length} tools)</span>
-          <span className="toggle-arrow">{isExpanded ? '▲' : '▼'}</span>
-        </button>
-
-        {isExpanded && (
-          <div className="reasoning-steps">
-            {reasoning.map((step, index) => (
-              <div key={index} className={`reasoning-step ${step.type}`}>
-                {step.type === 'tool_call' && (
-                  <>
-                    <span className="step-icon">{TOOL_ICONS[step.tool] || '🔧'}</span>
-                    <span className="step-text">
-                      Calling <strong>{step.tool}</strong>
-                    </span>
-                  </>
-                )}
-                {step.type === 'tool_result' && (
-                  <>
-                    <span className="step-icon">
-                      {step.result === 'success' ? '✅' : '❌'}
-                    </span>
-                    <span className="step-text">{step.summary}</span>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Quick suggestion chips
   const suggestions = [t('sugg_irrigate'), t('sugg_weather'), t('sugg_save'), t('weekly_report')];
@@ -268,7 +204,7 @@ function WhatsAppChat() {
 
             {/* Show reasoning for assistant messages */}
             {message.role === 'assistant' && message.reasoning && (
-              renderReasoning(message.reasoning, message.id)
+              <ReasoningLog steps={message.reasoning} />
             )}
 
             <span className="chat-bubble-time">

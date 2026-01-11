@@ -5,7 +5,9 @@ import { agentMemory } from '../services/agentMemory';
 import { indianSoils } from '../data/indianSoils';
 import { indianCrops } from '../data/indianCrops';
 import { indianRegions } from '../data/indianRegions';
-import { t, SUPPORTED_LANGUAGES, getCurrentLanguage, setCurrentLanguage } from '../utils/translations';
+import { t, SUPPORTED_LANGUAGES } from '../utils/translations';
+import { useLanguage } from '../App';
+import LanguageSelector from './LanguageSelector';
 
 const WATER_SOURCES = [
     { id: 'borewell', name: 'Borewell', nameHindi: 'बोरवेल' },
@@ -23,14 +25,7 @@ const IRRIGATION_METHODS = [
     { id: 'furrow', name: 'Furrow', nameHindi: 'नाली', efficiency: 0.6 }
 ];
 
-// Language selector icon component
-const LanguageIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="2" y1="12" x2="22" y2="12" />
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-);
+
 
 // Eye icon for preview mode
 const EyeIcon = () => (
@@ -62,11 +57,10 @@ const MOCK_FARMER_PROFILE = {
 
 function FarmerRegistration() {
     const navigate = useNavigate();
+    const { t, language } = useLanguage();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState(null);
     const [step, setStep] = useState(1);
-    const [lang, setLang] = useState(getCurrentLanguage());
-    const [showLanguageMenu, setShowLanguageMenu] = useState(false);
 
     const [formData, setFormData] = useState({
         fullName: '',
@@ -81,21 +75,12 @@ function FarmerRegistration() {
         irrigationMethod: '',
         primaryCrop: '',
         plantingDate: '',
-        language: 'en'
+        language: language
     });
 
     const [districts, setDistricts] = useState([]);
 
-    // Handle language change
-    const handleLanguageChange = (newLang) => {
-        setLang(newLang);
-        setCurrentLanguage(newLang);
-        setFormData(prev => ({ ...prev, language: newLang }));
-        setShowLanguageMenu(false);
-    };
 
-    // Helper function for translations
-    const tr = (key) => t(key, lang);
 
     // Update districts when state changes
     useEffect(() => {
@@ -106,17 +91,6 @@ function FarmerRegistration() {
         }
     }, [formData.state]);
 
-    // Close language menu when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (showLanguageMenu && !e.target.closest('.language-selector-wrapper')) {
-                setShowLanguageMenu(false);
-            }
-        };
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, [showLanguageMenu]);
-
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -126,23 +100,23 @@ function FarmerRegistration() {
     const validateStep = (stepNum) => {
         switch (stepNum) {
             case 1:
-                if (!formData.fullName.trim()) return tr('enter_name');
-                if (!formData.phone.match(/^[6-9]\d{9}$/)) return tr('enter_mobile');
+                if (!formData.fullName.trim()) return t('enter_name');
+                if (!formData.phone.match(/^[6-9]\d{9}$/)) return t('enter_mobile');
                 // Email is optional, no validation needed here
                 return null;
             case 2:
-                if (!formData.state) return tr('select_state');
-                if (!formData.district) return tr('select_district');
-                if (!formData.landSizeHa || parseFloat(formData.landSizeHa) <= 0) return tr('land_size');
+                if (!formData.state) return t('select_state');
+                if (!formData.district) return t('select_district');
+                if (!formData.landSizeHa || parseFloat(formData.landSizeHa) <= 0) return t('land_size');
                 return null;
             case 3:
-                if (!formData.soilType) return tr('select_soil');
-                if (!formData.waterSource) return tr('select_water_source');
-                if (!formData.irrigationMethod) return tr('irrigation_method');
+                if (!formData.soilType) return t('select_soil');
+                if (!formData.waterSource) return t('select_water_source');
+                if (!formData.irrigationMethod) return t('irrigation_method');
                 return null;
             case 4:
-                if (!formData.primaryCrop) return tr('select_crop');
-                if (!formData.plantingDate) return tr('planting_date');
+                if (!formData.primaryCrop) return t('select_crop');
+                if (!formData.plantingDate) return t('planting_date');
                 return null;
             default:
                 return null;
@@ -488,80 +462,7 @@ function FarmerRegistration() {
                 right: '20px',
                 zIndex: 100
             }}>
-                <button
-                    type="button"
-                    className="language-toggle-btn"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setShowLanguageMenu(!showLanguageMenu);
-                    }}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '10px 16px',
-                        background: 'var(--bg-glass)',
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid var(--border-glass)',
-                        borderRadius: 'var(--radius-full)',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                        fontSize: 'var(--font-size-sm)',
-                        transition: 'all var(--transition-fast)'
-                    }}
-                    aria-label={tr('select_language')}
-                >
-                    <LanguageIcon />
-                    <span>{currentLangInfo.nativeName}</span>
-                </button>
-
-                {/* Language Dropdown Menu */}
-                {showLanguageMenu && (
-                    <div className="language-dropdown no-scrollbar" style={{
-                        position: 'absolute',
-                        top: '100%',
-                        right: 0,
-                        marginTop: '8px',
-                        background: 'var(--bg-glass-strong)',
-                        backdropFilter: 'blur(20px)',
-                        border: '1px solid var(--border-glass)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: '8px',
-                        minWidth: '200px',
-                        maxHeight: '400px',
-                        overflowY: 'auto',
-                        boxShadow: '0 8px 32px var(--shadow-color)',
-                        zIndex: 1000
-                    }}>
-                        {SUPPORTED_LANGUAGES.filter(l => l.code !== 'hi_translit').map(language => (
-                            <button
-                                key={language.code}
-                                type="button"
-                                onClick={() => handleLanguageChange(language.code)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    background: lang === language.code ? 'var(--accent-primary)' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: 'var(--radius-md)',
-                                    color: lang === language.code ? 'white' : 'var(--text-primary)',
-                                    cursor: 'pointer',
-                                    fontSize: 'var(--font-size-sm)',
-                                    textAlign: 'left',
-                                    transition: 'all var(--transition-fast)'
-                                }}
-                            >
-                                <span>{language.nativeName}</span>
-                                <span style={{ opacity: 0.7, fontSize: 'var(--font-size-xs)' }}>
-                                    {language.name}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                )}
+                <LanguageSelector />
             </div>
 
             <div className="registration-card glass-card">
@@ -669,7 +570,7 @@ function FarmerRegistration() {
                 aria-label={tr('preview_app')}
             >
                 <EyeIcon />
-                <span>{tr('preview_app')}</span>
+                <span>{t('preview_app')}</span>
             </button>
         </div>
     );
