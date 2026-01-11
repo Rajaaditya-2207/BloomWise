@@ -4,7 +4,7 @@ import { useApp, useLanguage } from '../App';
 import { runAgentLoop } from '../services/agentLoop';
 import { agentMemory } from '../services/agentMemory';
 import ReasoningLog from './ReasoningLog';
-import { ArrowLeftIcon, MenuIcon, SendIcon, SmileIcon, SignalIcon, TrashIcon, AgentIcon } from './Icons';
+import { ArrowLeftIcon, MenuIcon, SendIcon, SmileIcon, SignalIcon, TrashIcon, AgentIcon, ColoredProjectLogo } from './Icons';
 
 const EMOJI_LIST = ['👍', '💧', '🌾', '☀️', '🌧️', '⚡', '🙏', '✅', '❌', '❓'];
 
@@ -151,7 +151,7 @@ function WhatsAppChat() {
           <ArrowLeftIcon size={20} />
         </button>
         <div className="chat-header-avatar">
-          <AgentIcon size={24} />
+          <ColoredProjectLogo size={28} />
         </div>
         <div className="chat-header-info">
           <h2>BloomWise Agent</h2>

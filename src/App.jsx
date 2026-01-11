@@ -7,7 +7,7 @@ import FarmSetup from './components/FarmSetup';
 import IrrigationSchedule from './components/IrrigationSchedule';
 import WhatsAppChat from './components/WhatsAppChat';
 import WeeklyReport from './components/WeeklyReport';
-import { ProjectLogo } from './components/Icons';
+import { ProjectLogo, ColoredProjectLogo } from './components/Icons';
 import Navigation from './components/Navigation';
 import OfflineIndicator from './components/OfflineIndicator';
 import Settings from './components/Settings';
@@ -244,7 +244,8 @@ function App() {
             <div className="loading-screen">
                 <div className="loading-content">
                     <div className="loading-icon-wrapper">
-                        <ProjectLogo size={64} style={{ color: 'var(--text-primary)' }} />
+                        {/* Use Multi-Color Logo for Splash Screen */}
+                        <ColoredProjectLogo width="64" height="64" />
                     </div>
                     <h1>BloomWise</h1>
                     <p>{t('loading')}</p>

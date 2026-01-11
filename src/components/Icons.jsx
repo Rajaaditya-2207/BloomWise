@@ -26,6 +26,8 @@ export const HomeIcon = (props) => (
 );
 
 // Project Logo: Agent (ADK Icon) + Water Drop near the hand (>)
+// Project Logo: Agent (ADK Icon) + Water Drop near the hand (>)
+// Project Logo: Agent (ADK Icon) + Water Drop near the hand (>) (Single Color for Nav)
 export const ProjectLogo = (props) => (
     <IconBase {...props}>
         {/* Agent Head (Pill) - Shifted left */}
@@ -41,6 +43,26 @@ export const ProjectLogo = (props) => (
 
         {/* Water Drop - On the right side, near the bracket */}
         <path d="M20 15c0 0-2.5 2.5-2.5 4a2.5 2.5 0 0 0 5 0c0-1.5-2.5-4-2.5-4z" fill="currentColor" stroke="none" />
+    </IconBase>
+);
+
+// Colored Project Logo: Multi-color for Welcome/Ask Agent pages
+export const ColoredProjectLogo = (props) => (
+    <IconBase {...props}>
+        {/* Agent Head (Pill) - Shifted left - Base/Purple */}
+        <rect x="2" y="4" width="16" height="8" rx="4" fill="none" stroke="#8b5cf6" strokeWidth="2" />
+        {/* Eyes - Green */}
+        <circle cx="7" cy="8" r="1.5" stroke="none" fill="#22c55e" />
+        <circle cx="13" cy="8" r="1.5" stroke="none" fill="#22c55e" />
+
+        {/* Left Bracket - Base/Purple */}
+        <path d="M4 16v2a2 2 0 0 0 2 2h1" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" />
+
+        {/* Right Bracket (>) - The "Hand" - Yellow */}
+        <polyline points="13 16 16 19 13 22" fill="none" stroke="#eab308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Water Drop - On the right side, near the bracket - Blue */}
+        <path d="M20 15c0 0-2.5 2.5-2.5 4a2.5 2.5 0 0 0 5 0c0-1.5-2.5-4-2.5-4z" fill="#3b82f6" stroke="none" />
     </IconBase>
 );
 
