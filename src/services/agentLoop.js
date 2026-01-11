@@ -166,7 +166,12 @@ export async function runAgentLoop(userMessage, context = {}, history = []) {
                 });
 
                 // Execute the tool
-                const result = await executeTool(name, { ...args, farmerId: fullContext.farmerId });
+                const toolArgs = {
+                    ...args,
+                    farmerId: fullContext.farmerId,
+                    farmContext: fullContext.farm ? fullContext : null // Pass full context for Preview Mode
+                };
+                const result = await executeTool(name, toolArgs);
 
                 // Record result
                 reasoningSteps.push({

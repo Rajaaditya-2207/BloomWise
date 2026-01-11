@@ -8,6 +8,7 @@ import { indianCrops, getCropById, getGrowthStage } from '../data/indianCrops';
 import { indianSoils, getSoilById, getIrrigationMultiplier } from '../data/indianSoils';
 import { getPowerSchedule } from '../data/powerSchedules';
 import { supabase } from './supabase';
+import { agentDecisionLog } from './agentDecisionLog';
 
 /**
  * Tool definitions for Gemini function calling
@@ -345,15 +346,21 @@ export const toolHandlers = {
             signal_status: 'SENT' // Mock: always succeeds
         };
 
-        // Log to Supabase if available
-        try {
-            if (farmerId && false) { // Disabled for demo to prevent 404s
-                const { error } = await supabase.from('signal_history').insert([signal]);
-                if (error) console.log('Signal logging skipped (Demo/Offline mode):', error.message || error);
-            }
-        } catch (e) {
-            console.warn('Supabase not available, signal logged locally');
-        }
+        // Log to Decision Log Service (Persist to LocalStorage/DB)
+        const decisionEntry = {
+            action,
+            reason: reasoning,
+            confidence: 95, // High confidence for explicit commands
+            sensorData: conditions || {},
+            waterAmount: waterAmountLiters,
+            waterSaved: action === 'SKIP' ? 5000 : 0, // Estimate
+            duration: durationMins
+        };
+
+        // If we have farmContext, we are in Preview/Demo mode
+        // Pass true to logDecision to force LocalStorage (Simulated DB)
+        const isPreview = !!farmerId?.startsWith('mock-') || (conditions && conditions.isPreview);
+        agentDecisionLog.logDecision(decisionEntry, isPreview);
 
         return {
             success: true,
@@ -367,7 +374,7 @@ export const toolHandlers = {
             },
             message: `Signal ${action} sent to irrigation system`,
             isMock: true,
-            note: 'This is a mock signal. Real hardware integration pending.'
+            note: 'Signal saved to Decision Log.'
         };
     },
 
@@ -437,7 +444,30 @@ export const toolHandlers = {
         };
     },
 
-    async get_farmer_context({ farmerId }) {
+    async get_farmer_context({ farmerId, farmContext }) {
+        // 1. PREVIEW MODE / INJECTED CONTEXT
+        if (farmContext && farmContext.farm) {
+            const { farm, crop } = farmContext;
+            console.log('[AgentTools] Using injected farm context');
+            return {
+                success: true,
+                farmer: {
+                    name: farm.name || 'Preview Farmer',
+                    location: `${farm.district || 'Unset'}, ${farm.state || 'India'}`,
+                    landSize: farm.areaHectares || 2.5,
+                    soilType: farm.soilType || 'loam',
+                    waterSource: farm.waterSource || 'borewell',
+                    irrigationMethod: farm.irrigationMethod || 'drip',
+                    crop: crop?.name || 'Wheat',
+                    plantingDate: crop?.sowingDate || new Date().toISOString(),
+                    language: farmContext.language || 'en'
+                },
+                recentSignals: [], // Could fetch from agentDecisionLog if needed
+                daysAfterPlanting: crop?.daysAfterPlanting || 45
+            };
+        }
+
+        // 2. DEMO / DB MODE
         // Demo farmer data for demonstration purposes
         const demoFarmer = {
             name: 'Rajesh Kumar (Demo)',

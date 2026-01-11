@@ -25,85 +25,80 @@ function IrrigationSchedule() {
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      // Get farm data
-      const crop = farm.crops?.[0] ? getCropById(farm.crops[0].id) : null;
-      const powerSchedule = getPowerSchedule(farm.regionId);
+    // Use deterministic calculation (Math-based) to save API credits
+    // This mirrors the Background Agent's logic
+    calculateDeterministicSchedule();
 
-      // Calculate days after planting
-      const daysAfterPlanting = farm.crops?.[0]?.plantingDate
-        ? Math.floor((new Date() - new Date(farm.crops[0].plantingDate)) / (1000 * 60 * 60 * 24))
-        : 45;
-
-      const cropData = crop ? {
-        ...crop,
-        daysAfterPlanting,
-        currentKc: getCurrentKc(crop, daysAfterPlanting),
-        currentStage: daysAfterPlanting < 30 ? 'initial' : daysAfterPlanting < 60 ? 'development' : 'mid'
-      } : null;
-
-      const farmData = {
-        ...farm,
-        state: farm.regionId,
-        soilType: farm.soilTypeId,
-        waterSource: farm.waterSourceId,
-        irrigationMethod: farm.irrigationMethodId,
-        powerSchedule: powerSchedule.slots.map(s => `${s.start}-${s.end}`).join(', ')
-      };
-
-      const result = await generateIrrigationSchedule(farmData, weather, cropData);
-
-      if (result.success && result.schedule) {
-        setSchedule(result.schedule);
-
-        // Calculate savings
-        const avoided = result.schedule.filter(d => d.rainAvoided).length;
-        setRainAvoided(avoided);
-
-        // Estimate water saved (simplified calculation)
-        const irrigationDays = result.schedule.filter(d => d.action === 'NO_IRRIGATION').length;
-        const savedLiters = irrigationDays * 5000 * (farm.areaHectares || 1);
-        setWaterSaved(savedLiters);
-      }
-    } catch (error) {
-      console.error('Failed to generate schedule:', error);
-      // Generate demo schedule
-      generateDemoSchedule();
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   }
 
-  function generateDemoSchedule() {
+  function calculateDeterministicSchedule() {
     const today = new Date();
-    const demo = [];
+    const calculatedSchedule = [];
+    const activeCrop = farm?.crops?.[0] ? getCropById(farm.crops[0].id) : { name: 'Wheat', id: 'wheat' };
+    const powerSchedule = farm?.powerSchedule || 'morning_slot';
+
+    // Determine timing based on power schedule
+    let defaultTime = '06:00';
+    if (powerSchedule === 'evening_slot') defaultTime = '16:00';
+    if (powerSchedule === 'night_slot') defaultTime = '23:00';
 
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() + i);
-
       const dayWeather = weather?.daily?.[i] || {};
-      const willRain = dayWeather.precipitationProbability > 60;
 
-      demo.push({
+      // --- Deterministic Logic (FAO-56 Simplified) ---
+
+      // 1. Rain Check
+      const willRain = dayWeather.precipitationProbability > 60 || dayWeather.precipitationSum > 5;
+
+      // 2. Crop Water Need (ETc)
+      const et0 = dayWeather.et0 || 5.0;
+      // Estimate Kc based on simple timeline (0.4 initial -> 1.15 mid -> 0.7 end)
+      // Simplified for this view without full growth engine
+      const kc = 1.0;
+      const etc = et0 * kc;
+
+      // 3. Scheduling Rule
+      // Wheat: Irrigatate when depletion > 50%
+      // Simplified: Wheat every 4 days, Paddy every 2 days
+      const isRice = activeCrop.id?.includes('rice') || activeCrop.name?.toLowerCase().includes('paddy');
+      const interval = isRice ? 2 : 4;
+
+      // Check if today matches interval (pseudo-logic starting from today)
+      // In a real app, we'd check "last irrigation date"
+      const isIrrigationDay = (i % interval === 0);
+
+      const shouldIrrigate = !willRain && isIrrigationDay;
+
+      // 4. Volume Calculation (Liters)
+      // 1mm = 10,000 L/ha. Apply 30mm for Wheat, 50mm for Rice per session
+      const depthMm = isRice ? 50 : 30;
+      const volumeLiters = depthMm * 10000 * (farm?.areaHectares || 1);
+      const durationMins = Math.round(volumeLiters / 600); // 10 L/s flow
+
+      calculatedSchedule.push({
         date: date.toISOString().split('T')[0],
-        action: willRain ? 'NO_IRRIGATION' : (i % 2 === 0 ? 'IRRIGATE' : 'MONITOR'),
-        time: '18:00',
-        duration_mins: 30,
-        volume_liters: 5000,
+        action: willRain ? 'NO_IRRIGATION' : (shouldIrrigate ? 'IRRIGATE' : 'MONITOR'),
+        time: defaultTime,
+        duration_mins: durationMins,
+        volume_liters: volumeLiters,
         reasoning: willRain
-          ? t('reason_rain')
-          : t('reason_scheduled'),
+          ? t('reason_rain') // "Rain expected, skipping"
+          : shouldIrrigate
+            ? `${t('action_irrigate')} - ${activeCrop.name} ${t('needs_water')}`
+            : t('soil_moisture_adequate'),
         rainAvoided: willRain,
         weather: dayWeather
       });
     }
 
-    setSchedule(demo);
-    setRainAvoided(demo.filter(d => d.rainAvoided).length);
-    setWaterSaved(demo.filter(d => d.action === 'NO_IRRIGATION').length * 5000);
+    setSchedule(calculatedSchedule);
+    setRainAvoided(calculatedSchedule.filter(d => d.rainAvoided).length);
+    setWaterSaved(calculatedSchedule.filter(d => d.action === 'NO_IRRIGATION').length * 5000);
   }
 
   function getActionColor(action) {
