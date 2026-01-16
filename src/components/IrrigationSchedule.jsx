@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useApp, useLanguage } from '../App';
 import { getWeatherIcon } from '../services/weatherService';
-import { generateIrrigationSchedule } from '../services/geminiService';
+import { generateIrrigationSchedule } from '../services/agentChatService';
 import { getCropById, getCurrentKc } from '../data/indianCrops';
 import { getPowerSchedule } from '../data/powerSchedules';
+import {
+  WaterIcon,
+  CloudRainIcon,
+  CalendarIcon,
+  EyeIcon,
+  PauseIcon,
+  ClockIcon,
+  CheckIcon,
+  AlertCircleIcon,
+  LightningIcon,
+  DropletsIcon
+} from './Icons';
 
 function IrrigationSchedule() {
   const { farm, weather } = useApp();
@@ -37,7 +49,19 @@ function IrrigationSchedule() {
   function calculateDeterministicSchedule() {
     const today = new Date();
     const calculatedSchedule = [];
-    const activeCrop = farm?.crops?.[0] ? getCropById(farm.crops[0].id) : { name: 'Wheat', id: 'wheat' };
+
+    // STRICT: No fallback to "Wheat". If no crop, we cannot generate schedule.
+    // Use farm.primary_crop (text id) or farm.crops?.[0]?.id (from db relation if joined)
+    const cropId = farm?.primary_crop || farm?.crops?.[0]?.id;
+
+    if (!cropId) {
+      console.warn('No crop data found for schedule generation');
+      setSchedule([]); // Or empty state
+      setLoading(false);
+      return;
+    }
+
+    const activeCrop = getCropById(cropId) || { name: 'Unknown Crop', id: cropId };
     const powerSchedule = farm?.powerSchedule || 'morning_slot';
 
     // Determine timing based on power schedule
@@ -111,12 +135,12 @@ function IrrigationSchedule() {
   }
 
   function getActionIcon(action, rainAvoided) {
-    if (rainAvoided) return '🌧️';
+    if (rainAvoided) return <CloudRainIcon />;
     switch (action) {
-      case 'IRRIGATE': return '💧';
-      case 'NO_IRRIGATION': return '⏸️';
-      case 'MONITOR': return '👁️';
-      default: return '📅';
+      case 'IRRIGATE': return <DropletsIcon />;
+      case 'NO_IRRIGATION': return <PauseIcon />;
+      case 'MONITOR': return <EyeIcon />;
+      default: return <CalendarIcon />;
     }
   }
 
@@ -171,25 +195,44 @@ function IrrigationSchedule() {
     );
   }
 
+  // Empty State if no schedule (e.g. no crop data)
+  if (!schedule || schedule.length === 0) {
+    return (
+      <div className="schedule-page">
+        <header className="schedule-header">
+          <h1>{t('schedule_title')}</h1>
+          <p>{t('schedule_desc')}</p>
+        </header>
+        <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+          <AlertCircleIcon size={48} style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }} />
+          <h3>{t('no_crop_data') || 'No Crop Data Found'}</h3>
+          <p>{t('add_crop_setup') || 'Please complete farm setup to view irrigation schedule.'}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="schedule-page">
       {/* Header */}
       <header className="schedule-header">
-        <h1>📅 {t('schedule_title')}</h1>
+        <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+          <CalendarIcon style={{ color: 'var(--accent-primary)' }} /> {t('schedule_title')}
+        </h1>
         <p>{t('schedule_desc')}</p>
       </header>
 
       {/* Summary Cards */}
       <div className="summary-cards">
         <div className="summary-card water">
-          <span className="icon">💧</span>
+          <span className="icon"><WaterIcon /></span>
           <div>
             <span className="value">{waterSaved.toLocaleString()}</span>
             <span className="label">{t('water_saved')} {t('liters')}</span>
           </div>
         </div>
         <div className="summary-card rain">
-          <span className="icon">🌧️</span>
+          <span className="icon"><CloudRainIcon /></span>
           <div>
             <span className="value">{rainAvoided}</span>
             <span className="label">{t('rain_events_avoided')}</span>
@@ -239,22 +282,28 @@ function IrrigationSchedule() {
           {schedule[selectedDay].action === 'IRRIGATE' && (
             <div className="irrigation-details">
               <div className="detail-row">
-                <span className="label">⏰ {t('time')}</span>
+                <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ClockIcon size={16} /> {t('time')}
+                </span>
                 <span className="value">{schedule[selectedDay].time}</span>
               </div>
               <div className="detail-row">
-                <span className="label">⏱️ {t('duration')}</span>
+                <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ClockIcon size={16} /> {t('duration')}
+                </span>
                 <span className="value">{schedule[selectedDay].duration_mins} min</span>
               </div>
               <div className="detail-row">
-                <span className="label">💧 {t('water_amount')}</span>
+                <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <WaterIcon size={16} /> {t('water_amount')}
+                </span>
                 <span className="value">{schedule[selectedDay].volume_liters?.toLocaleString()} L</span>
               </div>
             </div>
           )}
 
-          <p className="reasoning">
-            💡 {schedule[selectedDay].reasoning}
+          <p className="reasoning" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <AlertCircleIcon size={16} style={{ marginTop: '3px', flexShrink: 0 }} /> {schedule[selectedDay].reasoning}
           </p>
 
           {/* Weather for the day */}
@@ -265,7 +314,7 @@ function IrrigationSchedule() {
                 {Math.round(weather.daily[selectedDay].tempMax)}° / {Math.round(weather.daily[selectedDay].tempMin)}°
               </span>
               {weather.daily[selectedDay].precipitationSum > 0 && (
-                <span>🌧️ {weather.daily[selectedDay].precipitationSum}mm</span>
+                <span><CloudRainIcon size={14} /> {weather.daily[selectedDay].precipitationSum}mm</span>
               )}
               <span>ET₀: {weather.daily[selectedDay].et0?.toFixed(1)}mm</span>
             </div>
@@ -309,7 +358,9 @@ function IrrigationSchedule() {
 
       {/* JSON Output for IoT */}
       <section className="iot-output card">
-        <h3>🔌 {t('iot_output')}</h3>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <LightningIcon style={{ color: 'var(--warning)' }} /> {t('iot_output')}
+        </h3>
         <p className="iot-description">
           {t('iot_desc')}
         </p>

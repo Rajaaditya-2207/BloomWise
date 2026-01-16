@@ -304,12 +304,14 @@ function SignalHistory() {
                 )}
             </div>
 
-            {/* Mock Hardware Notice */}
-            <div className="mock-notice glass-card">
-                <p>
-                    <AlertTriangleIcon size={16} /> <strong>{t('mock_mode')}:</strong> {t('mock_desc')}
-                </p>
-            </div>
+            {/* Mock Hardware Notice - Only show in Demo Mode */}
+            {context?.isDemo && (
+                <div className="mock-notice glass-card">
+                    <p>
+                        <AlertTriangleIcon size={16} /> <strong>{t('mock_mode')}:</strong> {t('mock_desc')}
+                    </p>
+                </div>
+            )}
 
             <style>{`
                 .header-icon { display: inline-block; margin-right: 0.5rem; vertical-align: bottom; }
@@ -317,6 +319,36 @@ function SignalHistory() {
                 .btn-secondary { display: flex; align-items: center; gap: 0.5rem; }
                 .spin { animation: spin 1s linear infinite; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
+                
+                .conditions-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+                    gap: 0.5rem;
+                    margin-top: 0.75rem;
+                    padding-top: 0.75rem;
+                    border-top: 1px solid rgba(255,255,255,0.05);
+                }
+                
+                .condition {
+                    font-size: 0.75rem;
+                    color: var(--text-secondary);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.35rem;
+                    background: rgba(255,255,255,0.03);
+                    padding: 0.25rem 0.5rem;
+                    border-radius: 4px;
+                }
+
+                .source-badge {
+                    font-size: 0.65rem;
+                    padding: 0.1rem 0.4rem;
+                    border-radius: 4px;
+                    margin-left: 0.5rem;
+                    background: rgba(139, 92, 246, 0.2); /* Purple for AI */
+                    color: #a78bfa;
+                    border: 1px solid rgba(139, 92, 246, 0.3);
+                }
             `}</style>
         </div>
     );

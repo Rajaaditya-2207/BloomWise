@@ -7,6 +7,8 @@ import {
   SettingsIcon, PaletteIcon, GlobeIcon, PlantIcon, DatabaseIcon,
   InfoIcon, ArrowLeftIcon, SunIcon, MoonIcon, LogOutIcon
 } from './Icons';
+import { indianSoils } from '../data/indianSoils';
+import { powerSchedules } from '../data/powerSchedules';
 
 function Settings() {
   const { farm } = useApp();
@@ -16,6 +18,7 @@ function Settings() {
   const location = useLocation();
   const isPreviewMode = location.pathname.startsWith('/preview');
 
+  const [showFarmDetailsModal, setShowFarmDetailsModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const storageStats = getStorageStats();
 
@@ -97,7 +100,10 @@ function Settings() {
               <span className="label">{t('area')}</span>
               <span className="value">{farm?.areaHectares} {t('hectares')}</span>
             </div>
-            <button className="btn btn-glass" onClick={() => navigate('/farm')} style={{ width: '100%', marginTop: '1rem' }}>
+            <button className="btn btn-primary" onClick={() => setShowFarmDetailsModal(true)} style={{ width: '100%', marginTop: '1rem' }}>
+              Show Farm Details
+            </button>
+            <button className="btn btn-glass" onClick={() => navigate('/farm')} style={{ width: '100%', marginTop: '0.5rem' }}>
               {t('edit_farm_details')}
             </button>
           </div>
@@ -134,7 +140,7 @@ function Settings() {
             </div>
             <div className="info-row">
               <span className="label">{t('app_version')}</span>
-              <span className="value">1.0.0 MVP</span>
+              <span className="value">1.0.5 MVP</span>
             </div>
             <p className="about-text">
               {t('app_tagline')}
@@ -151,7 +157,6 @@ function Settings() {
                 navigate('/');
                 window.location.reload(); // Reset state
               } else {
-                // Clear any stored user state if needed
                 navigate('/welcome');
               }
             }}
@@ -176,6 +181,97 @@ function Settings() {
                 </button>
                 <button className="btn btn-danger" onClick={handleClearCache}>
                   {t('clear_cache')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Show Farm Details Modal */}
+      {
+        showFarmDetailsModal && (
+          <div className="modal-overlay">
+            <div className="modal-content glass-strong" style={{ maxWidth: '400px' }}>
+              <h3>Farm Details</h3>
+              <div className="farm-details-list">
+                <div className="info-row">
+                  <span className="label">Name</span>
+                  <span className="value">{farm?.name || 'N/A'}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Location</span>
+                  <span className="value">{farm?.district}, {farm?.state}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Land Size</span>
+                  <span className="value">{farm?.areaHectares} Hectares</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Soil Type</span>
+                  <span className="value text-capitalize">
+                    {farm?.soilType || farm?.soil_type || (farm?.soilTypeId && indianSoils.find(s => s.id === farm.soilTypeId)?.name) || 'N/A'}
+                  </span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Irrigation</span>
+                  <span className="value text-capitalize">
+                    {farm?.irrigationMethod || farm?.irrigation_method || farm?.irrigationMethodId?.replace(/_/g, ' ') || 'N/A'}
+                  </span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Water Source</span>
+                  <span className="value text-capitalize">
+                    {farm?.waterSource || farm?.water_source || farm?.waterSourceId?.replace(/_/g, ' ') || 'N/A'}
+                  </span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Power Schedule</span>
+                  <span className="value text-capitalize">
+                    {(farm?.powerSchedule || farm?.power_schedule || 'morning_evening').replace(/_/g, ' ')}
+                  </span>
+                </div>
+
+                <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
+                  <span className="label">Crops Grown ({(farm?.crops?.length) || (farm?.primary_crop ? 1 : 0)})</span>
+                  <div className="crops-tags">
+                    {/* Handle Array of Crops (Local Demo) */}
+                    {farm?.crops && farm.crops.length > 0 ? (
+                      farm.crops.map((crop, index) => (
+                        <span key={index} className="crop-tag" style={{
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          color: '#10b981',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          marginRight: '4px',
+                          marginBottom: '4px',
+                          display: 'inline-block'
+                        }}>
+                          {crop.name || crop.id}
+                        </span>
+                      ))
+                    ) : farm?.primary_crop ? (
+                      /* Handle Single DB Crop */
+                      <span className="crop-tag" style={{
+                        background: 'rgba(16, 185, 129, 0.2)',
+                        color: '#10b981',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.75rem',
+                        display: 'inline-block'
+                      }}>
+                        {farm.primary_crop}
+                      </span>
+                    ) : (
+                      <span className="value">No crops added</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                <button className="btn btn-primary" onClick={() => setShowFarmDetailsModal(false)} style={{ width: '100%' }}>
+                  Close
                 </button>
               </div>
             </div>
@@ -351,6 +447,10 @@ function Settings() {
           font-weight: 500;
           color: var(--text-primary);
         }
+
+        .text-capitalize {
+            text-transform: capitalize;
+        }
         
         .cache-note, .about-text {
           font-size: 0.75rem;
@@ -394,11 +494,15 @@ function Settings() {
           max-width: 320px;
           width: 100%;
           border-radius: var(--radius-lg);
+          max-height: 80vh;
+          overflow-y: auto;
         }
         
         .modal-content h3 {
-          margin: 0 0 0.5rem;
+          margin: 0 0 1rem;
           color: var(--text-primary);
+          border-bottom: 1px solid var(--border-glass);
+          padding-bottom: 0.5rem;
         }
         
         .modal-content p {

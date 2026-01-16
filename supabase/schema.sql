@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS farmers (
   irrigation_method TEXT NOT NULL,
   primary_crop TEXT NOT NULL,
   planting_date DATE NOT NULL,
+  power_schedule TEXT DEFAULT 'morning_evening', -- NEW: User's preferred power slot
   language TEXT DEFAULT 'en',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -59,10 +60,12 @@ CREATE TABLE IF NOT EXISTS crop_growth (
   recorded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Agent Decisions Log (New)
+-- Agent Decisions Log (Hourly Granular)
 CREATE TABLE IF NOT EXISTS agent_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id UUID REFERENCES farmers(id) ON DELETE CASCADE,
+  simulation_date DATE NOT NULL DEFAULT CURRENT_DATE, -- NEW: Date of simulation
+  simulation_hour INTEGER NOT NULL DEFAULT 0 CHECK (simulation_hour >= 0 AND simulation_hour <= 23), -- NEW: Hour 0-23
   action TEXT NOT NULL,
   reason TEXT,
   confidence INTEGER DEFAULT 0,
@@ -70,7 +73,27 @@ CREATE TABLE IF NOT EXISTS agent_decisions (
   water_used INTEGER DEFAULT 0,
   water_saved INTEGER DEFAULT 0,
   duration_minutes INTEGER DEFAULT 0,
+  power_available BOOLEAN DEFAULT TRUE, -- NEW: Was power available at this hour?
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Weather Cache for historical weather data (avoids API rate limits)
+CREATE TABLE IF NOT EXISTS weather_cache (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  latitude DECIMAL(8,5) NOT NULL,
+  longitude DECIMAL(8,5) NOT NULL,
+  date DATE NOT NULL,
+  temperature_max DECIMAL(4,1),
+  temperature_min DECIMAL(4,1),
+  temperature_mean DECIMAL(4,1),
+  precipitation_sum DECIMAL(5,1) DEFAULT 0,
+  precipitation_probability INTEGER DEFAULT 0,
+  humidity_mean INTEGER,
+  wind_speed_max DECIMAL(4,1),
+  et0 DECIMAL(4,2), -- Reference evapotranspiration
+  weather_code INTEGER, -- WMO weather code
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(latitude, longitude, date)
 );
 
 -- Indexes for performance
@@ -79,6 +102,8 @@ CREATE INDEX IF NOT EXISTS idx_signal_history_timestamp ON signal_history(timest
 CREATE INDEX IF NOT EXISTS idx_irrigation_logs_farmer_date ON irrigation_logs(farmer_id, date);
 CREATE INDEX IF NOT EXISTS idx_crop_growth_farmer ON crop_growth(farmer_id);
 CREATE INDEX IF NOT EXISTS idx_agent_decisions_farmer ON agent_decisions(farmer_id);
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_date_hour ON agent_decisions(simulation_date, simulation_hour);
+CREATE INDEX IF NOT EXISTS idx_weather_cache_location_date ON weather_cache(latitude, longitude, date);
 
 -- Enable Row Level Security
 ALTER TABLE farmers ENABLE ROW LEVEL SECURITY;

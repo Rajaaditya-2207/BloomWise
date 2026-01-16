@@ -403,3 +403,115 @@ export const CalendarIcon = (props) => (
         <line x1="3" y1="10" x2="21" y2="10" />
     </IconBase>
 );
+
+// Phone Icon (for login tabs)
+export const PhoneIcon = (props) => (
+    <IconBase {...props}>
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+        <line x1="12" y1="18" x2="12.01" y2="18" />
+    </IconBase>
+);
+
+// Mail/Email Icon (for login tabs)
+export const MailIcon = (props) => (
+    <IconBase {...props}>
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+    </IconBase>
+);
+
+// Chevron Left Icon (for back button)
+export const ChevronLeftIcon = (props) => (
+    <IconBase {...props}>
+        <polyline points="15 18 9 12 15 6" />
+    </IconBase>
+);
+
+// Wheat Icon (Crops)
+export const WheatIcon = (props) => (
+    <IconBase {...props}>
+        <path d="M2 22a8 8 0 0 1 8-8" />
+        <path d="M10 14a8 8 0 0 1 8-8" />
+        <path d="M18 11a5 5 0 0 1-5 5" />
+        <path d="M13 16a5 5 0 0 1-5 5" />
+        <path d="M3.23 2.8a6.5 6.5 0 0 1 9.3 9.3" />
+        <path d="M11.9 11.5a6.5 6.5 0 0 1 9.3 9.3" />
+        <path d="M10 22v-8" />
+    </IconBase>
+);
+
+// Leaf Icon
+export const LeafIcon = (props) => (
+    <IconBase {...props}>
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+    </IconBase>
+);
+
+// Sprinkler/Shower Icon
+export const SprinklerIcon = (props) => (
+    <IconBase {...props}>
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="12" y1="2" x2="12" y2="8" />
+        <line x1="12" y1="8" x2="12" y2="22" />
+        <line x1="12" y1="16" x2="5" y2="22" />
+        <line x1="12" y1="16" x2="19" y2="22" />
+        <path d="M3 6h18" />
+    </IconBase>
+);
+
+// Lightning Icon
+export const LightningIcon = (props) => (
+    <IconBase {...props}>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </IconBase>
+);
+
+// Thumbs Up Icon
+export const ThumbsUpIcon = (props) => (
+    <IconBase {...props}>
+        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+    </IconBase>
+);
+
+// Wave Icon (for river/canal)
+export const WaveIcon = (props) => (
+    <IconBase {...props}>
+        <path d="M2.5 12c1.7 0 3.4-.8 4.5-2.5 1.1-1.7 2.8-2.5 4.5-2.5s3.4.8 4.5 2.5c1.1 1.7 2.8 2.5 4.5 2.5" />
+        <path d="M2.5 17c1.7 0 3.4-.8 4.5-2.5 1.1-1.7 2.8-2.5 4.5-2.5s3.4.8 4.5 2.5c1.1 1.7 2.8 2.5 4.5 2.5" />
+    </IconBase>
+);
+
+// Map Pin Icon (Location/Region)
+export const MapPinIcon = (props) => (
+    <IconBase {...props}>
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
+    </IconBase>
+);
+
+// Clock Icon (Time)
+export const ClockIcon = (props) => (
+    <IconBase {...props}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+    </IconBase>
+);
+
+// Zap Icon (Power Available)
+export const ZapIcon = (props) => (
+    <IconBase {...props}>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </IconBase>
+);
+
+// Zap Off Icon (Power Unavailable)
+export const ZapOffIcon = (props) => (
+    <IconBase {...props}>
+        <polyline points="12.41 6.75 13 2 10.57 4.92" />
+        <polyline points="18.57 12.91 21 10 15.66 10" />
+        <polyline points="8 8 3 14 12 14 11 22 16 16" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+    </IconBase>
+);

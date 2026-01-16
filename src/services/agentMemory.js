@@ -72,7 +72,9 @@ class AgentMemory {
             water_source: farmer.water_source,
             irrigation_method: farmer.irrigation_method,
             latitude: farmer.latitude,
-            longitude: farmer.longitude
+            longitude: farmer.longitude,
+            primary_crop: farmer.primary_crop, // Include in farm object
+            planting_date: farmer.planting_date
         };
         this.context.crop = {
             primary_crop: farmer.primary_crop,

@@ -16,48 +16,75 @@ function WeeklyReport() {
   const [waterData, setWaterData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Week selection - default to current week's Monday
+  const getWeekStart = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    return new Date(d.setDate(diff));
+  };
+
+  const [selectedWeekStart, setSelectedWeekStart] = useState(() => {
+    return getWeekStart(new Date()).toISOString().split('T')[0];
+  });
+
+  // Get min date (planting date)
+  const minDate = farm?.planting_date || farm?.plantingDate || '2024-01-01';
+
   useEffect(() => {
     console.log('WeeklyReport: Effect triggered', { farm });
     async function fetchData() {
-      // If preview mode or no farmer, use mock data
+      // If preview mode OR explicit demo flag, use mock data. 
+      // If it is a real logged-in user (farm.id exists and !isDemo), we fetch real data.
       if (!farm?.id || farm?.isDemo) {
-        console.log('WeeklyReport: Using Mock Data', { farmId: farm?.id, isDemo: farm?.isDemo });
+        console.log('WeeklyReport: Using Mock Data (Demo Mode)', { farm });
         setWaterData(generateMockData());
         setLoading(false);
         return;
       }
 
-      console.log('WeeklyReport: Fetching Real Data');
+      console.log('WeeklyReport: Fetching Real Data from Supabase');
 
       try {
-        // Fetch last 7 days logs
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 6);
+        // Fetch data for selected week
+        const startDate = new Date(selectedWeekStart);
+        if (isNaN(startDate.getTime())) {
+          console.error("WeeklyReport: Invalid startDate", selectedWeekStart);
+          throw new Error("Invalid start date");
+        }
 
-        const { data: logs, error } = await import('../services/supabase').then(m => m.supabase)
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6);
+
+        // Import supabase properly
+        const { supabase } = await import('../services/supabase');
+        const { data: logs, error } = await supabase
           .from('irrigation_logs')
           .select('*')
           .eq('farmer_id', farm.id)
-          .gte('date', startDate.toISOString().split('T')[0]);
+          .gte('date', startDate.toISOString().split('T')[0])
+          .lte('date', endDate.toISOString().split('T')[0])
+          .order('date', { ascending: true });
 
         if (error) throw error;
 
+        // For real users, if no logs, we show EMPTY data (zeros), not mock data
         if (!logs || logs.length === 0) {
-          // Fallback to mock if no real data yet
-          setWaterData(generateMockData());
+          console.log('WeeklyReport: No logs found, showing zeros.');
+          setWaterData(processRealData([])); // Pass empty array to generate zeroed days
         } else {
           setWaterData(processRealData(logs));
         }
       } catch (err) {
         console.error('Failed to fetch report data:', err);
-        setWaterData(generateMockData());
+        // On error for real user, show zeros, not mock
+        setWaterData(processRealData([]));
       } finally {
         setLoading(false);
       }
     }
     fetchData();
-  }, [farm]);
+  }, [farm, selectedWeekStart]);
 
   // Process Real Supabase Data
   const processRealData = (logs) => {
@@ -80,10 +107,11 @@ function WeeklyReport() {
       }
     });
 
-    // Generate last 7 days
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+    // Generate 7 days starting from selectedWeekStart
+    const baseDate = new Date(selectedWeekStart);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + i);
       const dateKey = d.toISOString().split('T')[0];
       const log = logsByDate[dateKey] || { used: 0, saved: 0, reason: null };
 
@@ -159,7 +187,7 @@ function WeeklyReport() {
       // Set reason based on reduction level
       if (pattern.reduction >= 1.0) {
         smartScheduleWater = 0;
-        skippedReason = language === 'hi' ? '🌧️ बारिश' : '🌧️ Rain';
+        skippedReason = language === 'hi' ? 'बारिश' : 'Rain';
       } else if (pattern.reduction >= 0.5) {
         skippedReason = language === 'hi' ? '50% कम' : '50% reduced';
       } else if (pattern.reduction >= 0.3) {
@@ -260,15 +288,45 @@ function WeeklyReport() {
   return (
     <div className="weekly-report">
       {/* Header */}
-      <header className="report-header">
-        <button onClick={() => navigate('/')} className="back-btn" aria-label="Back">
+
+
+      {/* Header - Now inside the glass card */}
+      <div className="report-title-card glass-card" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.5rem',
+        marginBottom: '2rem',
+        textAlign: 'center',
+        position: 'relative'
+      }}>
+        <button
+          onClick={() => navigate('/')}
+          className="back-btn"
+          aria-label="Back"
+          style={{
+            position: 'absolute',
+            left: '1rem',
+            top: '1rem',
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            zIndex: 10
+          }}
+        >
           <ArrowLeftIcon size={24} />
         </button>
-        <div className="header-content">
-          <h1>{t('weekly_report')}</h1>
-          <p className="header-subtitle">{t('report_desc')}</p>
-        </div>
-      </header>
+        <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>{t('weekly_report') || 'Weekly Water Usage Report'}</h1>
+        <p className="header-subtitle" style={{ marginTop: '0.5rem', opacity: 0.8 }}>{t('report_desc')}</p>
+      </div>
 
       {/* Summary Cards */}
       <section className="summary-section">
@@ -303,11 +361,30 @@ function WeeklyReport() {
             </div>
           </div>
         </div>
-      </section>
+      </section >
 
       {/* Daily Comparison */}
-      <section className="chart-section glass-card">
-        <h3>{t('daily_comparison')}</h3>
+      < section className="chart-section glass-card" >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <h3 style={{ margin: 0 }}>{t('daily_comparison')}</h3>
+          <input
+            type="date"
+            value={selectedWeekStart}
+            onChange={(e) => setSelectedWeekStart(e.target.value)}
+            min={minDate}
+            max={new Date().toISOString().split('T')[0]}
+            style={{
+              padding: '0.4rem 0.8rem',
+              borderRadius: '6px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(0,0,0,0.3)',
+              color: 'var(--text-primary)',
+              fontSize: '0.85rem',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          />
+        </div>
         <div className="chart-container">
           {/* Simple Bar Chart Visualization */}
           <div className="bar-chart">
@@ -346,10 +423,10 @@ function WeeklyReport() {
             <div className="legend-item"><span className="dot smart"></span> {t('smart_ai')}</div>
           </div>
         </div>
-      </section>
+      </section >
 
       {/* Daily Details */}
-      <section className="daily-details glass-card">
+      < section className="daily-details glass-card" >
         <h2>{t('daily_details')}</h2>
         <div className="details-table">
           <div className="table-header">
@@ -370,10 +447,10 @@ function WeeklyReport() {
             </div>
           ))}
         </div>
-      </section>
+      </section >
 
       {/* Export Actions */}
-      <section className="export-section glass-card">
+      < section className="export-section glass-card" >
         <h2>{t('export_report')}</h2>
         <div className="export-buttons">
           <button onClick={exportCSV} className="export-btn csv">
@@ -405,14 +482,14 @@ function WeeklyReport() {
             {t('view_detailed_analytics') || 'View Detailed Analytics (Looker)'} <ArrowLeftIcon size={16} style={{ transform: 'rotate(180deg)' }} />
           </button>
         </div>
-      </section>
+      </section >
 
       {/* Disclaimer */}
-      <div className="disclaimer">
+      < div className="disclaimer" >
         <div className="disclaimer">
           <p>{t('report_disclaimer')}</p>
         </div>
-      </div>
+      </div >
 
       <style>{`
         .weekly-report {
@@ -734,7 +811,7 @@ function WeeklyReport() {
           }
         }
       `}</style>
-    </div>
+    </div >
   );
 }
 

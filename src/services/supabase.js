@@ -90,7 +90,8 @@ export async function signInWithEmailOtp(email) {
     const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-            shouldCreateUser: false
+            // This ensures the user isn't automatically redirected (as per user request)
+            shouldCreateUser: true,
         }
     });
 
@@ -124,7 +125,62 @@ export async function verifyEmailOtp(email, token) {
     });
 
     if (error) throw error;
+    return { data, error: null };
+}
+
+/**
+ * Sign in with Phone OTP (SMS)
+ */
+export async function signInWithPhoneOtp(phone) {
+    if (!supabase) {
+        console.warn('Supabase not configured. Using demo mode.');
+        return { error: null }; // Simulate success
+    }
+
+    // Format phone to E.164 format for India (+91XXXXXXXXXX)
+    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+
+    const { data, error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+        options: {
+            shouldCreateUser: true
+        }
+    });
+
+    if (error) throw error;
     return data;
+}
+
+/**
+ * Verify Phone OTP
+ */
+export async function verifyPhoneOtp(phone, token) {
+    if (!supabase) {
+        console.warn('Supabase not configured. Using demo mode.');
+        // Verify mock OTP '123456'
+        if (token === '123456') {
+            return {
+                data: {
+                    user: { phone, id: 'demo-phone-user' },
+                    session: { access_token: 'mock-token' }
+                },
+                error: null
+            };
+        }
+        return { data: null, error: { message: 'Invalid OTP' } };
+    }
+
+    // Format phone to E.164 format
+    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+
+    const { data, error } = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token,
+        type: 'sms'
+    });
+
+    if (error) throw error;
+    return { data, error: null };
 }
 
 /**

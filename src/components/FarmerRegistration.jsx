@@ -2,12 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { agentMemory } from '../services/agentMemory';
+import { backgroundAgent } from '../services/backgroundAgent';
 import { indianSoils } from '../data/indianSoils';
 import { indianCrops } from '../data/indianCrops';
 import { indianRegions } from '../data/indianRegions';
 import { t, SUPPORTED_LANGUAGES } from '../utils/translations';
 import { useLanguage } from '../App';
 import LanguageSelector from './LanguageSelector';
+import {
+    ColoredProjectLogo,
+    AlertCircleIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    CheckIcon,
+    UserIcon,
+    MapPinIcon,
+    LeafIcon,
+    WheatIcon,
+    EyeIcon,
+    WaveIcon,
+    DropletsIcon,
+    SunIcon,
+    AlertTriangleIcon
+} from './Icons';
 
 const WATER_SOURCES = [
     { id: 'borewell', name: 'Borewell', nameHindi: 'बोरवेल' },
@@ -25,15 +42,31 @@ const IRRIGATION_METHODS = [
     { id: 'furrow', name: 'Furrow', nameHindi: 'नाली', efficiency: 0.6 }
 ];
 
+// Power Schedule Options for Agent
+const POWER_SCHEDULES = [
+    { id: 'morning', name: 'Morning (6 AM - 10 AM)', nameHindi: 'सुबह (6 - 10 बजे)', hours: [6, 7, 8, 9] },
+    { id: 'evening', name: 'Evening (6 PM - 10 PM)', nameHindi: 'शाम (6 - 10 बजे)', hours: [18, 19, 20, 21] },
+    { id: 'night', name: 'Night (10 PM - 6 AM)', nameHindi: 'रात (10 बجे - 6 बजे)', hours: [22, 23, 0, 1, 2, 3, 4, 5] },
+    { id: 'morning_evening', name: 'Morning + Evening', nameHindi: 'सुबह + शाम', hours: [6, 7, 8, 9, 18, 19, 20, 21] },
+    { id: 'all_day', name: 'Available All Day', nameHindi: 'पूरे दिन उपलब्ध', hours: Array.from({ length: 24 }, (_, i) => i) }
+];
 
 
-// Eye icon for preview mode
-const EyeIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-        <circle cx="12" cy="12" r="3" />
-    </svg>
-);
+
+// Helper to map soil icons
+const getSoilIcon = (soilId) => {
+    switch (soilId) {
+        case 'alluvial': return <WaveIcon size={16} />;
+        case 'black': return <DropletsIcon size={16} />;
+        case 'red': return <SunIcon size={16} />;
+        case 'laterite': return <AlertTriangleIcon size={16} />;
+        case 'desert': return <SunIcon size={16} />;
+        case 'mountain': return <MapPinIcon size={16} />;
+        case 'forest': return <LeafIcon size={16} />;
+        case 'saline': return <AlertTriangleIcon size={16} />;
+        default: return <LeafIcon size={16} />;
+    }
+};
 
 // Mock farmer profile for preview mode
 const MOCK_FARMER_PROFILE = {
@@ -75,6 +108,7 @@ function FarmerRegistration() {
         irrigationMethod: '',
         primaryCrop: '',
         plantingDate: '',
+        powerSchedule: 'morning_evening', // NEW: Default power schedule
         language: language
     });
 
@@ -102,7 +136,7 @@ function FarmerRegistration() {
             case 1:
                 if (!formData.fullName.trim()) return t('enter_name');
                 if (!formData.phone.match(/^[6-9]\d{9}$/)) return t('enter_mobile');
-                // Email is optional, no validation needed here
+                if (!formData.email || !formData.email.includes('@')) return 'Please enter a valid email address';
                 return null;
             case 2:
                 if (!formData.state) return t('select_state');
@@ -117,6 +151,7 @@ function FarmerRegistration() {
             case 4:
                 if (!formData.primaryCrop) return t('select_crop');
                 if (!formData.plantingDate) return t('planting_date');
+                if (!formData.powerSchedule) return 'Please select your power schedule';
                 return null;
             default:
                 return null;
@@ -155,7 +190,7 @@ function FarmerRegistration() {
             const farmerData = {
                 full_name: formData.fullName.trim(),
                 phone: formData.phone.trim(),
-                email: formData.email.trim() || null, // Include email
+                email: formData.email.trim() || null,
                 state: formData.state,
                 district: formData.district,
                 village: formData.village.trim() || null,
@@ -165,9 +200,9 @@ function FarmerRegistration() {
                 irrigation_method: formData.irrigationMethod,
                 primary_crop: formData.primaryCrop,
                 planting_date: formData.plantingDate,
-                language: formData.language,
-                latitude: stateData?.capital?.lat || 20.5937,
-                longitude: stateData?.capital?.lon || 78.9629
+                power_schedule: formData.powerSchedule,
+                language: formData.language
+                // Note: latitude/longitude removed - not in current schema
             };
 
             // Save to Supabase
@@ -200,8 +235,8 @@ function FarmerRegistration() {
 
                     if (existing) {
                         agentMemory.setFarmer(existing);
-                        // Optional: Show a toast "Welcome back! Account existed."
-                        navigate('/');
+                        // Navigate to loading screen
+                        navigate('/loading');
                         return;
                     }
                 }
@@ -211,8 +246,8 @@ function FarmerRegistration() {
             // Save to agent memory
             agentMemory.setFarmer(data);
 
-            // Navigate to dashboard
-            navigate('/');
+            // Navigate to loading screen (agent starts there)
+            navigate('/loading');
 
         } catch (err) {
             console.error('Registration error:', err);
@@ -228,7 +263,7 @@ function FarmerRegistration() {
                 planting_date: formData.plantingDate
             };
             agentMemory.setFarmer(mockFarmer);
-            navigate('/');
+            navigate('/home');
         } finally {
             setIsSubmitting(false);
         }
@@ -236,34 +271,36 @@ function FarmerRegistration() {
 
     const renderStep1 = () => (
         <div className="registration-step">
-            <h3>👤 {tr('personal_info')}</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <UserIcon style={{ color: 'var(--accent-primary)', marginBottom: '-4px' }} /> {t('personal_info')}
+            </h3>
             <div className="form-group">
-                <label htmlFor="fullName">{tr('full_name')} *</label>
+                <label htmlFor="fullName">{t('full_name')} *</label>
                 <input
                     type="text"
                     id="fullName"
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
-                    placeholder={tr('enter_name')}
+                    placeholder={t('enter_name')}
                     required
                 />
             </div>
             <div className="form-group">
-                <label htmlFor="phone">{tr('mobile_number')} *</label>
+                <label htmlFor="phone">{t('mobile_number')} *</label>
                 <input
                     type="tel"
                     id="phone"
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder={tr('enter_mobile')}
+                    placeholder={t('enter_mobile')}
                     maxLength={10}
                     required
                 />
             </div>
             <div className="form-group">
-                <label htmlFor="email">Email ({tr('optional')})</label>
+                <label htmlFor="email">Email *</label>
                 <input
                     type="email"
                     id="email"
@@ -271,10 +308,11 @@ function FarmerRegistration() {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="e.g. farmer@example.com"
+                    required
                 />
             </div>
             <div className="form-group">
-                <label htmlFor="language">{tr('preferred_language')}</label>
+                <label htmlFor="language">{t('preferred_language')}</label>
                 <select
                     id="language"
                     name="language"
@@ -293,9 +331,11 @@ function FarmerRegistration() {
 
     const renderStep2 = () => (
         <div className="registration-step">
-            <h3>📍 {tr('farm_location')}</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <MapPinIcon style={{ color: 'var(--danger)', marginBottom: '-4px' }} /> {t('farm_location')}
+            </h3>
             <div className="form-group">
-                <label htmlFor="state">{tr('select_state')} *</label>
+                <label htmlFor="state">{t('select_state')} *</label>
                 <select
                     id="state"
                     name="state"
@@ -303,7 +343,7 @@ function FarmerRegistration() {
                     onChange={handleChange}
                     required
                 >
-                    <option value="">{tr('select_state')}</option>
+                    <option value="">{t('select_state')}</option>
                     {indianRegions.map(state => (
                         <option key={state.id} value={state.id}>
                             {state.name}
@@ -312,7 +352,7 @@ function FarmerRegistration() {
                 </select>
             </div>
             <div className="form-group">
-                <label htmlFor="district">{tr('select_district')} *</label>
+                <label htmlFor="district">{t('select_district')} *</label>
                 <select
                     id="district"
                     name="district"
@@ -321,7 +361,7 @@ function FarmerRegistration() {
                     required
                     disabled={!formData.state}
                 >
-                    <option value="">{tr('select_district')}</option>
+                    <option value="">{t('select_district')}</option>
                     {districts.map(district => (
                         <option key={district} value={district}>
                             {district}
@@ -330,18 +370,18 @@ function FarmerRegistration() {
                 </select>
             </div>
             <div className="form-group">
-                <label htmlFor="village">{tr('village')} ({tr('optional')})</label>
+                <label htmlFor="village">{t('village')} ({t('optional')})</label>
                 <input
                     type="text"
                     id="village"
                     name="village"
                     value={formData.village}
                     onChange={handleChange}
-                    placeholder={tr('village')}
+                    placeholder={t('village')}
                 />
             </div>
             <div className="form-group">
-                <label htmlFor="landSizeHa">{tr('land_size')} *</label>
+                <label htmlFor="landSizeHa">{t('land_size')} *</label>
                 <input
                     type="number"
                     id="landSizeHa"
@@ -353,16 +393,18 @@ function FarmerRegistration() {
                     step="0.1"
                     required
                 />
-                <span className="form-hint">{tr('land_hint')}</span>
+                <span className="form-hint">{t('land_hint')}</span>
             </div>
         </div>
     );
 
     const renderStep3 = () => (
         <div className="registration-step">
-            <h3>🌱 {tr('farm_details')}</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <LeafIcon style={{ color: 'var(--success)', marginBottom: '-4px' }} /> {t('farm_details')}
+            </h3>
             <div className="form-group">
-                <label htmlFor="soilType">{tr('select_soil')} *</label>
+                <label htmlFor="soilType">{t('select_soil')} *</label>
                 <select
                     id="soilType"
                     name="soilType"
@@ -370,16 +412,16 @@ function FarmerRegistration() {
                     onChange={handleChange}
                     required
                 >
-                    <option value="">{tr('select_soil')}</option>
+                    <option value="">{t('select_soil')}</option>
                     {indianSoils.map(soil => (
                         <option key={soil.id} value={soil.id}>
-                            {soil.icon} {soil.name} ({soil.nameHindi})
+                            {soil.name}
                         </option>
                     ))}
                 </select>
             </div>
             <div className="form-group">
-                <label htmlFor="waterSource">{tr('select_water_source')} *</label>
+                <label htmlFor="waterSource">{t('select_water_source')} *</label>
                 <select
                     id="waterSource"
                     name="waterSource"
@@ -387,16 +429,16 @@ function FarmerRegistration() {
                     onChange={handleChange}
                     required
                 >
-                    <option value="">{tr('select_water_source')}</option>
+                    <option value="">{t('select_water_source')}</option>
                     {WATER_SOURCES.map(source => (
                         <option key={source.id} value={source.id}>
-                            {source.name} ({source.nameHindi})
+                            {source.name}
                         </option>
                     ))}
                 </select>
             </div>
             <div className="form-group">
-                <label htmlFor="irrigationMethod">{tr('irrigation_method')} *</label>
+                <label htmlFor="irrigationMethod">{t('irrigation_method')} *</label>
                 <select
                     id="irrigationMethod"
                     name="irrigationMethod"
@@ -404,10 +446,10 @@ function FarmerRegistration() {
                     onChange={handleChange}
                     required
                 >
-                    <option value="">{tr('irrigation_method')}</option>
+                    <option value="">{t('irrigation_method')}</option>
                     {IRRIGATION_METHODS.map(method => (
                         <option key={method.id} value={method.id}>
-                            {method.name} ({method.nameHindi}) - {Math.round(method.efficiency * 100)}% {tr('efficient')}
+                            {method.name} - {Math.round(method.efficiency * 100)}% {t('efficient')}
                         </option>
                     ))}
                 </select>
@@ -417,9 +459,11 @@ function FarmerRegistration() {
 
     const renderStep4 = () => (
         <div className="registration-step">
-            <h3>🌾 {tr('crop_info')}</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <WheatIcon style={{ color: 'var(--warning)', marginBottom: '-4px' }} /> {t('crop_info')}
+            </h3>
             <div className="form-group">
-                <label htmlFor="primaryCrop">{tr('primary_crop')} *</label>
+                <label htmlFor="primaryCrop">{t('primary_crop')} *</label>
                 <select
                     id="primaryCrop"
                     name="primaryCrop"
@@ -427,16 +471,16 @@ function FarmerRegistration() {
                     onChange={handleChange}
                     required
                 >
-                    <option value="">{tr('select_crop')}</option>
+                    <option value="">{t('select_crop')}</option>
                     {indianCrops.slice(0, 30).map(crop => (
                         <option key={crop.id} value={crop.id}>
-                            {crop.icon} {crop.name} ({crop.nameHindi})
+                            {crop.name}
                         </option>
                     ))}
                 </select>
             </div>
             <div className="form-group">
-                <label htmlFor="plantingDate">{tr('planting_date')} *</label>
+                <label htmlFor="plantingDate">{t('planting_date')} *</label>
                 <input
                     type="date"
                     id="plantingDate"
@@ -447,11 +491,31 @@ function FarmerRegistration() {
                     required
                 />
             </div>
+            {/* NEW: Power Schedule Selector */}
+            <div className="form-group">
+                <label htmlFor="powerSchedule">{t('power_schedule') || 'Power Schedule'} *</label>
+                <select
+                    id="powerSchedule"
+                    name="powerSchedule"
+                    value={formData.powerSchedule}
+                    onChange={handleChange}
+                    required
+                >
+                    {POWER_SCHEDULES.map(schedule => (
+                        <option key={schedule.id} value={schedule.id}>
+                            {language === 'hi' ? schedule.nameHindi : schedule.name}
+                        </option>
+                    ))}
+                </select>
+                <small style={{ color: 'var(--text-muted)', marginTop: '0.5rem', display: 'block' }}>
+                    {t('power_schedule_hint') || 'Select when electricity is typically available for your pump.'}
+                </small>
+            </div>
         </div>
     );
 
     // Get current language display
-    const currentLangInfo = SUPPORTED_LANGUAGES.find(l => l.code === lang) || SUPPORTED_LANGUAGES[0];
+    const currentLangInfo = SUPPORTED_LANGUAGES.find(l => l.code === language) || SUPPORTED_LANGUAGES[0];
 
     return (
         <div className="registration-container">
@@ -467,8 +531,16 @@ function FarmerRegistration() {
 
             <div className="registration-card glass-card">
                 <div className="registration-header">
-                    <h2>🌾 {tr('registration_title')}</h2>
-                    <p>{tr('farmer_registration')}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        <ColoredProjectLogo size={36} />
+                        <h2 style={{
+                            margin: 0,
+                            background: 'linear-gradient(135deg, #22c55e 0%, #10b981 50%, #059669 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent'
+                        }}>BloomWise</h2>
+                    </div>
+                    <p>{t('farmer_registration') || 'Farmer Registration'}</p>
                 </div>
 
                 <div className="progress-bar">
@@ -477,7 +549,7 @@ function FarmerRegistration() {
                             key={s}
                             className={`progress-step ${s === step ? 'active' : ''} ${s < step ? 'completed' : ''}`}
                         >
-                            {s < step ? '✓' : s}
+                            {s < step ? <CheckIcon size={14} /> : s}
                         </div>
                     ))}
                 </div>
@@ -489,8 +561,8 @@ function FarmerRegistration() {
                     {step === 4 && renderStep4()}
 
                     {error && (
-                        <div className="error-message">
-                            ⚠️ {error}
+                        <div className="error-message" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <AlertCircleIcon size={18} style={{ color: '#ef4444' }} /> {error}
                         </div>
                     )}
 
@@ -500,8 +572,9 @@ function FarmerRegistration() {
                                 type="button"
                                 className="btn-secondary"
                                 onClick={prevStep}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                             >
-                                ← {tr('back')}
+                                <ChevronLeftIcon size={18} /> {t('back')}
                             </button>
                         )}
 
@@ -510,23 +583,38 @@ function FarmerRegistration() {
                                 type="button"
                                 className="btn-primary"
                                 onClick={nextStep}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                             >
-                                {tr('next')} →
+                                {t('next')} <ChevronRightIcon size={18} />
                             </button>
                         ) : (
                             <button
                                 type="submit"
                                 className="btn-primary"
                                 disabled={isSubmitting}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                             >
-                                {isSubmitting ? tr('registering') : `✓ ${tr('complete_registration')}`}
+                                {isSubmitting ? t('registering') : <><CheckIcon size={18} /> {t('complete_registration')}</>}
                             </button>
                         )}
                     </div>
                 </form>
 
-                <div className="registration-footer">
-                    <p>{tr('already_registered')}</p>
+                <div className="registration-footer" style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                        Already have an account?{' '}
+                        <span
+                            onClick={() => navigate('/signin')}
+                            style={{
+                                color: 'var(--accent-primary)',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                textDecoration: 'underline'
+                            }}
+                        >
+                            Sign In
+                        </span>
+                    </p>
                 </div>
             </div>
 
@@ -535,9 +623,9 @@ function FarmerRegistration() {
                 type="button"
                 className="preview-mode-btn"
                 onClick={() => {
-                    // Set mock farmer profile and navigate to dashboard
+                    // Set mock farmer profile and navigate to preview dashboard
                     agentMemory.setFarmer(MOCK_FARMER_PROFILE);
-                    navigate('/');
+                    navigate('/preview/home');
                 }}
                 style={{
                     position: 'fixed',
@@ -567,7 +655,7 @@ function FarmerRegistration() {
                     e.currentTarget.style.transform = 'translateY(0)';
                     e.currentTarget.style.boxShadow = '0 4px 20px rgba(99, 102, 241, 0.4)';
                 }}
-                aria-label={tr('preview_app')}
+                aria-label={t('preview_app')}
             >
                 <EyeIcon />
                 <span>{t('preview_app')}</span>

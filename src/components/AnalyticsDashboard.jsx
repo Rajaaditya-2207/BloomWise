@@ -11,6 +11,7 @@ import {
 } from './Icons';
 import { useApp, useLanguage } from '../App';
 import { agentDecisionLog } from '../services/agentDecisionLog';
+import { supabase } from '../services/supabase';
 
 /**
  * Analytics Dashboard Component
@@ -27,10 +28,11 @@ function AnalyticsDashboard({ type = 'waterUsage' }) {
     const [data, setData] = useState(null);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // For date picker
 
     const isPreview = window.location.pathname.startsWith('/preview');
-    // Force true for demo purposes if needed or respect farm.isDemo
-    const isDemo = farm?.isDemo || isPreview || true;
+    // Only use demo data if specifically in demo/preview mode or explicitly set
+    const isDemo = isPreview || (farm?.isDemo === true);
 
     // Scroll to top on mount
     useEffect(() => {
@@ -116,28 +118,215 @@ function AnalyticsDashboard({ type = 'waterUsage' }) {
                 await minLoadTime;
 
                 if (type === 'waterUsage') {
-                    setData(getHistoryData());
-                    // Aggregated Stats
-                    const totalWater = farm?.history?.resourceUsage?.reduce((sum, i) => sum + i.waterLiters, 0) || 0;
-                    setStats({
-                        totalSaved: Math.round(totalWater * 0.15),
-                        efficiency: 15,
-                        rainDays: 24 // Yearly estimate
-                    });
+                    if (!isDemo && farm?.id) {
+                        try {
+                            // Fetch last 7 days of irrigation logs
+                            const startDate = new Date();
+                            startDate.setDate(startDate.getDate() - 6);
+
+                            const { data: logs, error } = await supabase
+                                .from('irrigation_logs')
+                                .select('*')
+                                .eq('farmer_id', farm.id)
+                                .gte('date', startDate.toISOString().split('T')[0])
+                                .order('date', { ascending: true });
+
+                            if (!error && logs && logs.length > 0) {
+                                // Populate all 7 days even if logs are missing
+                                const filledData = [];
+                                const today = new Date();
+                                for (let i = 6; i >= 0; i--) {
+                                    const d = new Date(today);
+                                    d.setDate(d.getDate() - i);
+                                    const dateStr = d.toISOString().split('T')[0];
+
+                                    const log = logs.find(l => l.date === dateStr);
+                                    const dayLabel = d.toLocaleDateString('en', { weekday: 'short', day: 'numeric' });
+
+                                    if (log) {
+                                        const smart = Number(log.water_used_liters) || 0;
+                                        const saved = Number(log.water_saved_liters) || 0;
+                                        const fixed = smart + saved;
+                                        filledData.push({
+                                            day: dayLabel,
+                                            dayLabel: dayLabel,
+                                            fixed: Math.round(fixed / 100),
+                                            smart: Math.round(smart / 100),
+                                            saved: Math.round(saved / 100),
+                                            hasRain: log.rain_avoided
+                                        });
+                                    } else {
+                                        filledData.push({
+                                            day: dayLabel,
+                                            dayLabel: dayLabel,
+                                            fixed: 0,
+                                            smart: 0,
+                                            saved: 0,
+                                            hasRain: false
+                                        });
+                                    }
+                                }
+
+                                setData(filledData);
+
+                                // Calculate total stats
+                                const totalWater = logs.reduce((sum, log) => sum + (Number(log.water_used_liters) || 0), 0);
+                                const totalSaved = logs.reduce((sum, log) => sum + (Number(log.water_saved_liters) || 0), 0);
+                                const efficiency = totalWater > 0 ? Math.round((totalSaved / (totalWater + totalSaved)) * 100) : 0;
+
+                                setStats({
+                                    totalSaved: totalSaved,
+                                    efficiency: efficiency,
+                                    rainDays: logs.filter(l => l.rain_avoided).length
+                                });
+                            } else {
+                                // Fallback if no logs yet
+                                setData([]);
+                                setStats({ totalSaved: 0, efficiency: 0, rainDays: 0 });
+                            }
+                        } catch (realErr) {
+                            console.error("Failed to fetch real analytics:", realErr);
+                            // Fallback to empty or simple state
+                            setData([]);
+                            setStats({ totalSaved: 0, efficiency: 0, rainDays: 0 });
+                        }
+                    } else {
+                        // Demo/Preview Mode
+                        setData(getHistoryData());
+                        // Aggregated Stats
+                        const totalWater = farm?.history?.resourceUsage?.reduce((sum, i) => sum + i.waterLiters, 0) || 0;
+                        setStats({
+                            totalSaved: Math.round(totalWater * 0.15),
+                            efficiency: 15,
+                            rainDays: 24 // Yearly estimate
+                        });
+                    }
                 } else if (type === 'cropGrowth') {
-                    setData(getCropHistoryData());
-                    const activeCrop = farm?.crops?.[0];
-                    setStats({
-                        growthStage: activeCrop?.stage || t('stage_mid'),
-                        healthIndex: activeCrop?.healthScore || 92,
-                        nextHarvest: activeCrop?.expectedHarvest || 'Unknown',
-                        daysGrowing: 65
-                    });
+                    if (!isDemo && farm?.id) {
+                        try {
+                            // Fetch real crop growth data from database
+                            const { data: cropData, error } = await supabase
+                                .from('crop_growth')
+                                .select('*')
+                                .eq('farmer_id', farm.id)
+                                .order('recorded_at', { ascending: true });
+
+                            if (!error && cropData && cropData.length > 0) {
+                                // Group by week
+                                const weeklyData = cropData.reduce((acc, entry, idx) => {
+                                    const weekNum = Math.floor(idx / 7) + 1;
+                                    const weekLabel = `W${weekNum}`;
+                                    if (!acc[weekLabel]) {
+                                        acc[weekLabel] = { week: weekLabel, kc: 0, etCrop: 0, health: 0, count: 0 };
+                                    }
+                                    acc[weekLabel].kc += Number(entry.kc_coefficient) || 0.5;
+                                    acc[weekLabel].health += entry.health_status === 'healthy' ? 95 : (entry.health_status === 'stressed' ? 70 : 40);
+                                    acc[weekLabel].count++;
+                                    return acc;
+                                }, {});
+
+                                // Calculate averages
+                                const processed = Object.values(weeklyData).map(w => ({
+                                    week: w.week,
+                                    kc: w.count > 0 ? Math.round((w.kc / w.count) * 100) / 100 : 0.5,
+                                    etCrop: w.count > 0 ? Math.round((w.kc / w.count) * 4 * 10) / 10 : 2,
+                                    health: w.count > 0 ? Math.round(w.health / w.count) : 90
+                                }));
+
+                                setData(processed.length > 0 ? processed : getCropHistoryData());
+
+                                // Get latest crop info
+                                const latest = cropData[cropData.length - 1];
+                                const stageMap = { 'initial': 0, 'development': 1, 'mid_season': 2, 'mature': 3 };
+                                const currentStageIdx = stageMap[latest?.current_stage] !== undefined ? stageMap[latest?.current_stage] : 1;
+
+                                setStats({
+                                    growthStage: latest?.current_stage ? t('stage_' + latest.current_stage) : (t('stage_mid') || 'Mid Growth'),
+                                    growthStageIdx: currentStageIdx,
+                                    healthIndex: latest?.health_status === 'healthy' ? 92 : (latest?.health_status === 'stressed' ? 70 : 40),
+                                    nextHarvest: 'In ~30 days',
+                                    daysGrowing: cropData.length
+                                });
+                            } else {
+                                // No crop data yet - show empty/fallback
+                                setData(getCropHistoryData());
+                                setStats({
+                                    growthStage: farm?.primary_crop ? 'Growing' : t('stage_mid') || 'Mid Growth',
+                                    healthIndex: 90,
+                                    nextHarvest: 'Unknown',
+                                    daysGrowing: 0
+                                });
+                            }
+                        } catch (cropErr) {
+                            console.error('Failed to fetch crop analytics:', cropErr);
+                            setData(getCropHistoryData());
+                            setStats({ growthStage: 'Unknown', healthIndex: 0, nextHarvest: 'Unknown', daysGrowing: 0 });
+                        }
+                    } else {
+                        // Demo mode
+                        setData(getCropHistoryData());
+                        const activeCrop = farm?.crops?.[0];
+                        setStats({
+                            growthStage: activeCrop?.stage || t('stage_mid') || 'Mid Growth',
+                            healthIndex: activeCrop?.healthScore || 92,
+                            nextHarvest: activeCrop?.expectedHarvest || 'Unknown',
+                            daysGrowing: 65
+                        });
+                    }
                 } else if (type === 'agentDecisions') {
-                    // Fetch real logs or simulations
-                    const logs = await agentDecisionLog.getDecisions(true);
-                    setData(logs);
-                    setStats(await agentDecisionLog.getStats(true));
+                    // Fetch real agent decisions from Supabase with date filter
+                    if (!isDemo && farm?.id) {
+                        try {
+                            const { data: decisions, error } = await supabase
+                                .from('agent_decisions')
+                                .select('*')
+                                .eq('farmer_id', farm.id)
+                                .eq('simulation_date', selectedDate)
+                                .order('simulation_hour', { ascending: false });
+
+                            if (!error && decisions && decisions.length > 0) {
+                                const processedLogs = decisions.map(d => ({
+                                    action: d.action,
+                                    reason: d.reason,
+                                    time: `${String(d.simulation_hour).padStart(2, '0')}:00`,
+                                    timestamp: new Date(`${d.simulation_date}T${String(d.simulation_hour).padStart(2, '0')}:00`),
+                                    confidence: d.confidence || 85,
+                                    waterUsed: d.water_used || 0,
+                                    waterSaved: d.water_saved || 0,
+                                    powerAvailable: d.power_available
+                                }));
+
+                                setData(processedLogs);
+
+                                // Calculate stats from real data
+                                const totalDecisions = decisions.length;
+                                const irrigateCount = decisions.filter(d => d.action === 'IRRIGATE').length;
+                                const skipCount = decisions.filter(d => d.action !== 'IRRIGATE').length;
+                                const totalWaterSaved = decisions.reduce((sum, d) => sum + (d.water_saved || 0), 0);
+                                const avgConfidence = Math.round(decisions.reduce((sum, d) => sum + (d.confidence || 85), 0) / totalDecisions);
+
+                                setStats({
+                                    totalDecisions,
+                                    irrigateCount,
+                                    skipCount,
+                                    waterSaved: totalWaterSaved,
+                                    avgConfidence
+                                });
+                            } else {
+                                setData([]);
+                                setStats({ totalDecisions: 0, irrigateCount: 0, skipCount: 0, waterSaved: 0, avgConfidence: 0 });
+                            }
+                        } catch (err) {
+                            console.error('Failed to fetch agent decisions:', err);
+                            setData([]);
+                            setStats({ totalDecisions: 0, irrigateCount: 0, skipCount: 0, waterSaved: 0, avgConfidence: 0 });
+                        }
+                    } else {
+                        // Demo mode fallback
+                        const logs = await agentDecisionLog.getDecisions(true);
+                        setData(logs);
+                        setStats(await agentDecisionLog.getStats(true));
+                    }
                 }
 
             } catch (err) {
@@ -148,7 +337,7 @@ function AnalyticsDashboard({ type = 'waterUsage' }) {
         }
 
         loadData();
-    }, [type, farm, t, isDemo]);
+    }, [type, farm, t, isDemo, selectedDate]);
 
     // Loading State
     if (loading) {
@@ -324,10 +513,10 @@ function AnalyticsDashboard({ type = 'waterUsage' }) {
                             <section className="growth-pipeline glass-card">
                                 <h3>{t('growth_stage_prog')}</h3>
                                 <div className="pipeline-steps">
-                                    {['stage_initial', 'stage_dev', 'stage_mid', 'stage_late'].map((stageKey, i) => (
-                                        <div key={i} className={`step ${i <= 2 ? 'completed' : ''} ${i === 2 ? 'current' : ''}`}>
+                                    {['stage_initial', 'stage_development', 'stage_mid_season', 'stage_mature'].map((stageKey, i) => (
+                                        <div key={i} className={`step ${i <= (stats?.growthStageIdx || 2) ? 'completed' : ''} ${i === (stats?.growthStageIdx || 2) ? 'current' : ''}`}>
                                             <div className="step-circle">{i + 1}</div>
-                                            <span className="step-label">{t(stageKey)}</span>
+                                            <span className="step-label">{t(stageKey) || stageKey.replace('stage_', '').replace('_', ' ')}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -363,7 +552,24 @@ function AnalyticsDashboard({ type = 'waterUsage' }) {
                             </div>
 
                             <section className="decision-feed glass-card">
-                                <h3>{t('recent_actions')}</h3>
+                                <div className="feed-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                    <h3 style={{ margin: 0 }}>{t('agent_actions') || 'Agent Actions'}</h3>
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        max={new Date().toISOString().split('T')[0]}
+                                        style={{
+                                            padding: '0.5rem 0.75rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            background: 'rgba(0,0,0,0.3)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.875rem',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                </div>
                                 <div className="feed-list">
                                     {data?.map((item, index) => {
                                         const actionInfo = getActionDisplay(item.action);
@@ -379,7 +585,7 @@ function AnalyticsDashboard({ type = 'waterUsage' }) {
                                                 </div>
                                                 <div className="feed-content">
                                                     <div className="feed-header">
-                                                        <span className="feed-time">{item.time || new Date(item.timestamp).toLocaleDateString() + ' ' + new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                        <span className="feed-time">{item.time}</span>
                                                         <span className="feed-title">{actionInfo.label}</span>
                                                     </div>
                                                     <p className="feed-reason">{item.reason}</p>

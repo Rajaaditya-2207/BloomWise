@@ -1,462 +1,484 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp, useLanguage } from '../App';
-import { indianRegions, getDistrictsByRegion } from '../data/indianRegions';
+import {
+  indianRegions,
+  getDistrictsByRegion
+} from '../data/indianRegions';
 import { indianCrops, cropCategories } from '../data/indianCrops';
 import { indianSoils } from '../data/indianSoils';
 import { powerSchedules } from '../data/powerSchedules';
+import {
+  WaterIcon,
+  SprinklerIcon,
+  WaveIcon,
+  DropletsIcon,
+  LeafIcon,
+  WheatIcon,
+  AlertCircleIcon,
+  MapPinIcon,
+  CheckIcon,
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  LightningIcon,
+  SunIcon,
+  GlobeIcon
+} from './Icons';
 
-const STEPS = ['location', 'soil', 'water', 'power', 'crop', 'area'];
+// Helper to map soil icons
+const getSoilIcon = (soilId) => {
+  switch (soilId) {
+    case 'alluvial': return <WaveIcon />;
+    case 'black': return <DropletsIcon />;
+    case 'red': return <SunIcon />;
+    case 'laterite': return <AlertTriangleIcon />;
+    case 'desert': return <SunIcon />;
+    case 'mountain': return <MapPinIcon />;
+    case 'forest': return <LeafIcon />;
+    case 'saline': return <AlertTriangleIcon />;
+    default: return <LeafIcon />;
+  }
+};
 
-const waterSources = [
-    { id: 'borewell', name: 'Borewell', nameTranslit: 'Borewell', icon: '🕳️' },
-    { id: 'canal', name: 'Canal', nameTranslit: 'Nahar', icon: '🏞️' },
-    { id: 'tank', name: 'Tank/Pond', nameTranslit: 'Talaab', icon: '💧' },
-    { id: 'river', name: 'River', nameTranslit: 'Nadi', icon: '🌊' },
-    { id: 'tanker', name: 'Water Tanker', nameTranslit: 'Tanker', icon: '🚚' }
-];
+const FarmSetup = () => {
+  const { setFarm } = useApp();
+  const { t, language } = useLanguage();
+  const navigate = useNavigate();
 
-const irrigationMethods = [
-    { id: 'flood', name: 'Flood/Surface', nameTranslit: 'Flood', icon: '🌊', efficiency: 0.4 },
-    { id: 'furrow', name: 'Furrow', nameTranslit: 'Nali', icon: '〰️', efficiency: 0.55 },
-    { id: 'sprinkler', name: 'Sprinkler', nameTranslit: 'Sprinkler', icon: '🚿', efficiency: 0.75 },
-    { id: 'drip', name: 'Drip', nameTranslit: 'Drip', icon: '💧', efficiency: 0.90 }
-];
+  const [step, setStep] = useState(0);
+  const [formData, setFormData] = useState({
+    name: '',
+    state: '',
+    regionId: '',
+    district: '',
+    village: '',
+    soilTypeId: '',
+    soilDepthCm: 60,
+    waterSourceId: '',
+    irrigationMethodId: '',
+    areaHectares: 1,
+    crops: []
+  });
 
-function FarmSetup() {
-    const { farm, setFarm } = useApp();
-    const { t } = useLanguage();
-    const navigate = useNavigate();
+  const [plantingDate, setPlantingDate] = useState('');
+  const [selectedCrop, setSelectedCrop] = useState('');
 
-    const [step, setStep] = useState(0);
-    const [formData, setFormData] = useState({
-        name: farm?.name || '',
-        regionId: farm?.regionId || '',
-        district: farm?.district || '',
-        latitude: farm?.latitude || null,
-        longitude: farm?.longitude || null,
-        soilTypeId: farm?.soilTypeId || '',
-        soilDepthCm: farm?.soilDepthCm || 60,
-        waterSourceId: farm?.waterSourceId || '',
-        irrigationMethodId: farm?.irrigationMethodId || '',
-        areaHectares: farm?.areaHectares || 1,
-        crops: farm?.crops || []
-    });
+  // Constants
+  const STEPS = ['location', 'soil', 'water', 'power', 'crop', 'area'];
+  const currentStep = STEPS[step];
+  const isLastStep = step === STEPS.length - 1;
 
-    const [selectedCrop, setSelectedCrop] = useState('');
-    const [plantingDate, setPlantingDate] = useState('');
+  // Helpers
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
-    const currentStep = STEPS[step];
-    const isLastStep = step === STEPS.length - 1;
+  const addCrop = () => {
+    if (selectedCrop && plantingDate) {
+      updateField('crops', [...formData.crops, { id: selectedCrop, plantingDate }]);
+      setSelectedCrop('');
+      setPlantingDate('');
+    }
+  };
 
-    const handleNext = () => {
-        if (isLastStep) {
-            saveFarm();
-        } else {
-            setStep(s => s + 1);
-        }
-    };
+  const removeCrop = (index) => {
+    updateField('crops', formData.crops.filter((_, i) => i !== index));
+  };
 
-    const handleBack = () => {
-        if (step > 0) {
-            setStep(s => s - 1);
-        }
-    };
+  const handleNext = () => {
+    if (isLastStep) {
+      // Save farm
+      const newFarm = {
+        id: Date.now().toString(), // Mock ID
+        ...formData,
+        isDemo: true, // Mark as demo/local
+        createdAt: new Date().toISOString()
+      };
+      setFarm(newFarm);
+      navigate('/home');
+    } else {
+      setStep(prev => prev + 1);
+    }
+  };
 
-    const updateField = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-    };
+  const handleBack = () => {
+    setStep(prev => prev - 1);
+  };
 
-    const addCrop = () => {
-        if (selectedCrop && plantingDate) {
-            const newCrop = {
-                id: selectedCrop,
-                plantingDate: plantingDate
-            };
-            updateField('crops', [...formData.crops, newCrop]);
-            setSelectedCrop('');
-            setPlantingDate('');
-        }
-    };
+  const canProceed = () => {
+    switch (currentStep) {
+      case 'location': return formData.state && formData.district;
+      case 'soil': return formData.soilTypeId;
+      case 'water': return formData.waterSourceId && formData.irrigationMethodId;
+      case 'power': return true; // Info only
+      case 'crop': return formData.crops.length > 0;
+      case 'area': return formData.areaHectares > 0;
+      default: return false;
+    }
+  };
 
-    const removeCrop = (index) => {
-        const updated = formData.crops.filter((_, i) => i !== index);
-        updateField('crops', updated);
-    };
+  const renderStep = () => {
+    switch (currentStep) {
+      case 'location':
+        return (
+          <div className="step-content">
+            <h2><MapPinIcon style={{ color: 'var(--accent-primary)' }} /> {t('select_state')}</h2>
+            <p>{t('select_state_desc')}</p>
 
-    const saveFarm = () => {
-        // Get coordinates for the region (simplified)
-        const region = indianRegions.find(r => r.id === formData.regionId);
-        const updatedFarm = {
-            ...formData,
-            id: farm?.id || `farm-${Date.now()}`,
-            latitude: formData.latitude || getRegionCoords(formData.regionId).lat,
-            longitude: formData.longitude || getRegionCoords(formData.regionId).lon
-        };
-
-        setFarm(updatedFarm);
-        navigate('/');
-    };
-
-    // Simplified coordinates for regions
-    const getRegionCoords = (regionId) => {
-        const coords = {
-            'MH': { lat: 19.7515, lon: 75.7139 },
-            'UP': { lat: 26.8467, lon: 80.9462 },
-            'GJ': { lat: 22.2587, lon: 71.1924 },
-            'RJ': { lat: 27.0238, lon: 74.2179 },
-            'PB': { lat: 31.1471, lon: 75.3412 },
-            'HR': { lat: 29.0588, lon: 76.0856 },
-            'MP': { lat: 22.9734, lon: 78.6569 },
-            'KA': { lat: 15.3173, lon: 75.7139 },
-            'TN': { lat: 11.1271, lon: 78.6569 },
-            'AP': { lat: 15.9129, lon: 79.7400 },
-            'TS': { lat: 18.1124, lon: 79.0193 },
-            'WB': { lat: 22.9868, lon: 87.8550 },
-            'BR': { lat: 25.0961, lon: 85.3131 }
-        };
-        return coords[regionId] || { lat: 20.5937, lon: 78.9629 }; // Default: center of India
-    };
-
-    const canProceed = () => {
-        switch (currentStep) {
-            case 'location': return formData.regionId && formData.district;
-            case 'soil': return formData.soilTypeId;
-            case 'water': return formData.waterSourceId && formData.irrigationMethodId;
-            case 'power': return true; // Optional step
-            case 'crop': return formData.crops.length > 0;
-            case 'area': return formData.areaHectares > 0;
-            default: return true;
-        }
-    };
-
-    const renderStep = () => {
-        switch (currentStep) {
-            case 'location':
-                return (
-                    <div className="step-content">
-                        <h2>📍 {t('select_state')}</h2>
-                        <p>{t('select_state_desc')}</p>
-
-                        <div className="form-group">
-                            <label className="form-label">State/UT</label>
-                            <select
-                                className="form-select"
-                                value={formData.regionId}
-                                onChange={(e) => {
-                                    updateField('regionId', e.target.value);
-                                    updateField('district', '');
-                                }}
-                            >
-                                <option value="">{t('select_option')}</option>
-                                {indianRegions.map(region => (
-                                    <option key={region.id} value={region.id}>
-                                        {region.name} ({region.nameTranslit})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {formData.regionId && (
-                            <div className="form-group">
-                                <label className="form-label">{t('select_district')}</label>
-                                <select
-                                    className="form-select"
-                                    value={formData.district}
-                                    onChange={(e) => updateField('district', e.target.value)}
-                                >
-                                    <option value="">{t('select_option')}</option>
-                                    {getDistrictsByRegion(formData.regionId).map(district => (
-                                        <option key={district} value={district}>
-                                            {district}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-                );
-
-            case 'soil':
-                return (
-                    <div className="step-content">
-                        <h2>🌍 {t('select_soil')}</h2>
-                        <p>{t('select_soil_desc')}</p>
-
-                        <div className="soil-grid">
-                            {indianSoils.map(soil => (
-                                <button
-                                    key={soil.id}
-                                    className={`soil-card ${formData.soilTypeId === soil.id ? 'selected' : ''}`}
-                                    onClick={() => updateField('soilTypeId', soil.id)}
-                                >
-                                    <span className="soil-icon">{soil.icon}</span>
-                                    <span className="soil-name">{soil.nameTranslit}</span>
-                                    <span className="soil-english">{soil.name}</span>
-                                    <span className="soil-depth">{soil.typicalDepthCategory}</span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {formData.soilTypeId && (
-                            <div className="form-group" style={{ marginTop: '1rem' }}>
-                                <label className="form-label">
-                                    {t('soil_depth')} (cm): {formData.soilDepthCm}
-                                </label>
-                                <input
-                                    type="range"
-                                    min="20"
-                                    max="200"
-                                    value={formData.soilDepthCm}
-                                    onChange={(e) => updateField('soilDepthCm', parseInt(e.target.value))}
-                                    className="range-input"
-                                />
-                                <div className="range-labels">
-                                    <span>{t('shallow')} (20cm)</span>
-                                    <span>{t('deep')} (200cm)</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-
-            case 'water':
-                return (
-                    <div className="step-content">
-                        <h2>💧 {t('select_water_source')}</h2>
-                        <p>{t('water_source_desc')}</p>
-
-                        <div className="option-grid">
-                            {waterSources.map(source => (
-                                <button
-                                    key={source.id}
-                                    className={`option-card ${formData.waterSourceId === source.id ? 'selected' : ''}`}
-                                    onClick={() => updateField('waterSourceId', source.id)}
-                                >
-                                    <span className="option-icon">{source.icon}</span>
-                                    <span className="option-name">{source.nameTranslit}</span>
-                                </button>
-                            ))}
-                        </div>
-
-                        <h3 style={{ marginTop: '1.5rem' }}>{t('irrigation_method_title')}</h3>
-                        <div className="option-grid">
-                            {irrigationMethods.map(method => (
-                                <button
-                                    key={method.id}
-                                    className={`option-card ${formData.irrigationMethodId === method.id ? 'selected' : ''}`}
-                                    onClick={() => updateField('irrigationMethodId', method.id)}
-                                >
-                                    <span className="option-icon">{method.icon}</span>
-                                    <span className="option-name">{method.nameTranslit}</span>
-                                    <span className="option-efficiency">{Math.round(method.efficiency * 100)}% {t('efficient')}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div >
-                );
-
-            case 'power':
-                const powerSchedule = powerSchedules[formData.regionId] || powerSchedules.DEFAULT;
-                return (
-                    <div className="step-content">
-                        <h2>⚡ {t('power_schedule_title')}</h2>
-                        <p>{t('power_schedule_desc')}</p>
-
-                        <div className="power-info-card">
-                            <h3>{powerSchedule.name}</h3>
-                            <p className="scheme">{powerSchedule.scheme}</p>
-
-                            <div className="power-slots">
-                                <strong>{t('power_timings')}</strong>
-                                {powerSchedule.slots.map((slot, i) => (
-                                    <div key={i} className="slot-badge">
-                                        {slot.start} - {slot.end}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <p className="power-hours">
-                                ⏱️ {powerSchedule.hoursPerDay} {t('hours_per_day')}
-                            </p>
-
-                            <p className="power-note">
-                                💡 {powerSchedule.notesTranslit || powerSchedule.notes}
-                            </p>
-                        </div>
-
-                        <p className="note">
-                            ✅ {t('schedule_note')}
-                        </p>
-                    </div>
-                );
-
-            case 'crop':
-                return (
-                    <div className="step-content">
-                        <h2>🌾 {t('select_crop')}</h2>
-                        <p>{t('select_crop_desc')}</p>
-
-                        {/* Added crops */}
-                        {formData.crops.length > 0 && (
-                            <div className="added-crops">
-                                {formData.crops.map((crop, index) => {
-                                    const cropData = indianCrops.find(c => c.id === crop.id);
-                                    return (
-                                        <div key={index} className="added-crop-chip">
-                                            <span>{cropData?.icon} {cropData?.nameTranslit}</span>
-                                            <button onClick={() => removeCrop(index)}>×</button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Add new crop */}
-                        <div className="add-crop-form">
-                            <select
-                                className="form-select"
-                                value={selectedCrop}
-                                onChange={(e) => setSelectedCrop(e.target.value)}
-                            >
-                                <option value="">{t('select_crop_placeholder')}</option>
-                                {Object.entries(cropCategories).map(([catId, cat]) => (
-                                    <optgroup key={catId} label={`${cat.icon} ${cat.nameTranslit}`}>
-                                        {indianCrops.filter(c => c.category === catId).map(crop => (
-                                            <option key={crop.id} value={crop.id}>
-                                                {crop.icon} {crop.nameTranslit} ({crop.name})
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                ))}
-                            </select>
-
-                            <input
-                                type="date"
-                                className="form-input"
-                                value={plantingDate}
-                                onChange={(e) => setPlantingDate(e.target.value)}
-                                placeholder={t('planting_date_placeholder')}
-                            />
-
-                            <button
-                                className="btn btn-secondary"
-                                onClick={addCrop}
-                                disabled={!selectedCrop || !plantingDate}
-                            >
-                                {t('add_btn')}
-                            </button>
-                        </div>
-
-                        {/* Popular crops quick select */}
-                        <div className="popular-crops">
-                            <h4>{t('popular_crops')}</h4>
-                            <div className="crop-grid">
-                                {['wheat', 'rice_paddy', 'cotton', 'sugarcane', 'soybean', 'groundnut', 'tomato', 'onion'].map(cropId => {
-                                    const crop = indianCrops.find(c => c.id === cropId);
-                                    if (!crop) return null;
-                                    return (
-                                        <button
-                                            key={cropId}
-                                            className="crop-icon-btn"
-                                            onClick={() => setSelectedCrop(cropId)}
-                                        >
-                                            <span className="icon">{crop.icon}</span>
-                                            <span className="name">{crop.nameTranslit}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                );
-
-            case 'area':
-                return (
-                    <div className="step-content">
-                        <h2>📐 {t('farm_area')}</h2>
-                        <p>{t('farm_size_desc')}</p>
-
-                        <div className="area-input">
-                            <input
-                                type="number"
-                                className="form-input big-input"
-                                value={formData.areaHectares}
-                                onChange={(e) => updateField('areaHectares', parseFloat(e.target.value) || 0)}
-                                min="0.1"
-                                step="0.1"
-                            />
-                            <span className="unit">{t('hectare')}</span>
-                        </div>
-
-                        <div className="area-conversion">
-                            <p>≈ {(formData.areaHectares * 2.47).toFixed(1)} {t('acre')}</p>
-                            <p>≈ {(formData.areaHectares * 4).toFixed(1)} Bigha {t('approx')}</p>
-                        </div>
-
-                        <div className="area-quick-select">
-                            {[0.5, 1, 2, 5, 10].map(size => (
-                                <button
-                                    key={size}
-                                    className={`quick-btn ${formData.areaHectares === size ? 'selected' : ''}`}
-                                    onClick={() => updateField('areaHectares', size)}
-                                >
-                                    {size} ha
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="farm-name-input" style={{ marginTop: '1.5rem' }}>
-                            <label className="form-label">{t('farm_name_optional')}</label>
-                            <input
-                                type="text"
-                                className="form-input"
-                                value={formData.name}
-                                onChange={(e) => updateField('name', e.target.value)}
-                                placeholder={t('farm_name_placeholder')}
-                            />
-                        </div>
-                    </div>
-                );
-
-            default:
-                return null;
-        }
-    };
-
-    return (
-        <div className="farm-setup">
-            {/* Progress */}
-            <div className="progress-bar">
-                <div
-                    className="progress-fill"
-                    style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-                />
-            </div>
-            <div className="step-indicator">
-                Step {step + 1} of {STEPS.length}
+            <div className="form-group">
+              <label className="form-label">{t('state')}</label>
+              <select
+                className="form-select"
+                value={formData.state}
+                onChange={(e) => {
+                  const newState = e.target.value;
+                  const region = indianRegions.find(r => r.name === newState);
+                  updateField('state', newState);
+                  updateField('regionId', region ? region.id : '');
+                  updateField('district', '');
+                }}
+              >
+                <option value="">{t('select_state_placeholder')}</option>
+                {indianRegions.map(region => (
+                  <option key={region.id} value={region.name}>
+                    {region.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Step Content */}
-            {renderStep()}
+            <div className="form-group">
+              <label className="form-label">{t('district')}</label>
+              <select
+                className="form-select"
+                value={formData.district}
+                onChange={(e) => updateField('district', e.target.value)}
+                disabled={!formData.state}
+              >
+                <option value="">{t('select_district_placeholder')}</option>
+                {formData.state && getDistrictsByRegion(formData.regionId).map(district => (
+                  <option key={district} value={district}>
+                    {district}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {/* Navigation */}
-            <div className="setup-nav">
-                {step > 0 && (
-                    <button className="btn btn-secondary" onClick={handleBack}>
-                        ← {t('back')}
-                    </button>
-                )}
+            <div className="form-group">
+              <label className="form-label">{t('village_optional')}</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.village}
+                onChange={(e) => updateField('village', e.target.value)}
+                placeholder={t('enter_village')}
+              />
+            </div>
+          </div>
+        );
+
+      case 'soil':
+        return (
+          <div className="step-content">
+            <h2><GlobeIcon style={{ color: 'var(--accent-secondary)' }} /> {t('select_soil')}</h2>
+            <p>{t('select_soil_desc')}</p>
+
+            <div className="soil-grid">
+              {indianSoils.map(soil => (
                 <button
-                    className="btn btn-primary"
-                    onClick={handleNext}
-                    disabled={!canProceed()}
+                  key={soil.id}
+                  className={`soil-card ${formData.soilTypeId === soil.id ? 'selected' : ''}`}
+                  onClick={() => updateField('soilTypeId', soil.id)}
                 >
-                    {isLastStep ? `✓ ${t('save')}` : `${t('next')} →`}
+                  <span className="soil-icon">{getSoilIcon(soil.id)}</span>
+                  <span className="soil-name">{soil.nameTranslit}</span>
+                  <span className="soil-english">{soil.name}</span>
+                  <span className="soil-depth">{soil.typicalDepthCategory}</span>
                 </button>
+              ))}
             </div>
 
-            <style>{`
+            {formData.soilTypeId && (
+              <div className="form-group" style={{ marginTop: '1rem' }}>
+                <label className="form-label">
+                  {t('soil_depth')} (cm): {formData.soilDepthCm}
+                </label>
+                <input
+                  type="range"
+                  min="20"
+                  max="200"
+                  value={formData.soilDepthCm}
+                  onChange={(e) => updateField('soilDepthCm', parseInt(e.target.value))}
+                  className="range-input"
+                />
+                <div className="range-labels">
+                  <span>{t('shallow')} (20cm)</span>
+                  <span>{t('deep')} (200cm)</span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'water':
+        const waterSources = [
+          { id: 'borewell', name: 'Borewell', nameTranslit: t('borewell'), icon: '🕳️' },
+          { id: 'canal', name: 'Canal', nameTranslit: t('canal'), icon: '🌊' },
+          { id: 'river', name: 'River', nameTranslit: t('river'), icon: '🏞️' },
+          { id: 'rainfed', name: 'Rainfed', nameTranslit: t('rainfed'), icon: '🌧️' }
+        ];
+
+        const irrigationMethods = [
+          { id: 'drip', name: 'Drip', nameTranslit: t('drip'), efficiency: 0.95, icon: '💧' },
+          { id: 'sprinkler', name: 'Sprinkler', nameTranslit: t('sprinkler'), efficiency: 0.85, icon: '🚿' },
+          { id: 'flood', name: 'Flood', nameTranslit: t('flood'), efficiency: 0.60, icon: '🌊' }
+        ];
+
+        return (
+          <div className="step-content">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <WaterIcon style={{ color: 'var(--water)' }} /> {t('select_water_source')}
+            </h2>
+            <p>{t('water_source_desc')}</p>
+
+            <div className="option-grid">
+              {waterSources.map(source => (
+                <button
+                  key={source.id}
+                  className={`option-card ${formData.waterSourceId === source.id ? 'selected' : ''}`}
+                  onClick={() => updateField('waterSourceId', source.id)}
+                >
+                  <span className="option-icon">{source.icon}</span>
+                  <span className="option-name">{source.nameTranslit}</span>
+                </button>
+              ))}
+            </div>
+
+            <h3 style={{ marginTop: '1.5rem' }}>{t('irrigation_method_title')}</h3>
+            <div className="option-grid">
+              {irrigationMethods.map(method => (
+                <button
+                  key={method.id}
+                  className={`option-card ${formData.irrigationMethodId === method.id ? 'selected' : ''}`}
+                  onClick={() => updateField('irrigationMethodId', method.id)}
+                >
+                  <span className="option-icon">{method.icon}</span>
+                  <span className="option-name">{method.nameTranslit}</span>
+                  <span className="option-efficiency">{Math.round(method.efficiency * 100)}% {t('efficient')}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'power':
+        const powerSchedule = powerSchedules[formData.regionId] || powerSchedules.DEFAULT;
+        return (
+          <div className="step-content">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <LightningIcon style={{ color: 'var(--warning)' }} /> {t('power_schedule_title')}
+            </h2>
+            <p>{t('power_schedule_desc')}</p>
+
+            <div className="power-info-card">
+              <h3>{powerSchedule.name}</h3>
+              <p className="scheme">{powerSchedule.scheme}</p>
+
+              <div className="power-slots">
+                <strong>{t('power_timings')}</strong>
+                {powerSchedule.slots.map((slot, i) => (
+                  <div key={i} className="slot-badge">
+                    {slot.start} - {slot.end}
+                  </div>
+                ))}
+              </div>
+
+              <p className="power-hours">
+                <AlertCircleIcon size={18} /> {powerSchedule.hoursPerDay} {t('hours_per_day')}
+              </p>
+
+              <p className="power-note">
+                <AlertTriangleIcon size={18} /> {powerSchedule.notesTranslit || powerSchedule.notes}
+              </p>
+            </div>
+
+            <p className="note">
+              <CheckIcon size={18} /> {t('schedule_note')}
+            </p>
+          </div>
+        );
+
+      case 'crop':
+        return (
+          <div className="step-content">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <WheatIcon style={{ color: 'var(--success)' }} /> {t('select_crop')}
+            </h2>
+            <p>{t('select_crop_desc')}</p>
+
+            {/* Added crops */}
+            {formData.crops.length > 0 && (
+              <div className="added-crops">
+                {formData.crops.map((crop, index) => {
+                  const cropData = indianCrops.find(c => c.id === crop.id);
+                  return (
+                    <div key={index} className="added-crop-chip">
+                      <span><WheatIcon size={16} /> {cropData?.nameTranslit}</span>
+                      <button onClick={() => removeCrop(index)}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add new crop */}
+            <div className="add-crop-form">
+              <select
+                className="form-select"
+                value={selectedCrop}
+                onChange={(e) => setSelectedCrop(e.target.value)}
+              >
+                <option value="">{t('select_crop_placeholder')}</option>
+                {Object.entries(cropCategories).map(([catId, cat]) => (
+                  <optgroup key={catId} label={`${cat.icon} ${cat.nameTranslit}`}>
+                    {indianCrops.filter(c => c.category === catId).map(crop => (
+                      <option key={crop.id} value={crop.id}>
+                        {crop.nameTranslit} ({crop.name})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              <input
+                type="date"
+                className="form-input"
+                value={plantingDate}
+                onChange={(e) => setPlantingDate(e.target.value)}
+                placeholder={t('planting_date_placeholder')}
+              />
+
+              <button
+                className="btn btn-secondary"
+                onClick={addCrop}
+                disabled={!selectedCrop || !plantingDate}
+              >
+                {t('add_btn')}
+              </button>
+            </div>
+
+            {/* Popular crops quick select */}
+            <div className="popular-crops">
+              <h4>{t('popular_crops')}</h4>
+              <div className="crop-grid">
+                {['wheat', 'rice_paddy', 'cotton', 'sugarcane', 'soybean', 'groundnut', 'tomato', 'onion'].map(cropId => {
+                  const crop = indianCrops.find(c => c.id === cropId);
+                  if (!crop) return null;
+                  return (
+                    <button
+                      key={cropId}
+                      className="crop-icon-btn"
+                      onClick={() => setSelectedCrop(cropId)}
+                    >
+                      <span className="icon"><WheatIcon /></span>
+                      <span className="name">{crop.nameTranslit}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'area':
+        return (
+          <div className="step-content">
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <MapPinIcon style={{ color: 'var(--accent-primary)' }} /> {t('farm_area')}
+            </h2>
+            <p>{t('farm_size_desc')}</p>
+
+            <div className="area-input">
+              <input
+                type="number"
+                className="form-input big-input"
+                value={formData.areaHectares}
+                onChange={(e) => updateField('areaHectares', parseFloat(e.target.value) || 0)}
+                min="0.1"
+                step="0.1"
+              />
+              <span className="unit">{t('hectare')}</span>
+            </div>
+
+            <div className="area-conversion">
+              <p>≈ {(formData.areaHectares * 2.47).toFixed(1)} {t('acre')}</p>
+              <p>≈ {(formData.areaHectares * 4).toFixed(1)} Bigha {t('approx')}</p>
+            </div>
+
+            <div className="area-quick-select">
+              {[0.5, 1, 2, 5, 10].map(size => (
+                <button
+                  key={size}
+                  className={`quick-btn ${formData.areaHectares === size ? 'selected' : ''}`}
+                  onClick={() => updateField('areaHectares', size)}
+                >
+                  {size} ha
+                </button>
+              ))}
+            </div>
+
+            <div className="farm-name-input" style={{ marginTop: '1.5rem' }}>
+              <label className="form-label">{t('farm_name_optional')}</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.name}
+                onChange={(e) => updateField('name', e.target.value)}
+                placeholder={t('farm_name_placeholder')}
+              />
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="farm-setup">
+      {/* Progress */}
+      <div className="progress-bar">
+        <div
+          className="progress-fill"
+          style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+        />
+      </div>
+      <div className="step-indicator">
+        Step {step + 1} of {STEPS.length}
+      </div>
+
+      {/* Step Content */}
+      {renderStep()}
+
+      {/* Navigation */}
+      <div className="setup-nav">
+        {step > 0 && (
+          <button className="btn btn-secondary" onClick={handleBack}>
+            ← {t('back')}
+          </button>
+        )}
+        <button
+          className="btn btn-primary"
+          onClick={handleNext}
+          disabled={!canProceed()}
+        >
+          {isLastStep ? `✓ ${t('save')}` : `${t('next')} →`}
+        </button>
+      </div>
+
+      <style>{`
         .farm-setup {
           padding: 1rem;
           max-width: 600px;
@@ -799,10 +821,54 @@ function FarmSetup() {
         .btn-secondary:hover {
           background: var(--bg-glass-hover);
         }
+        .form-group {
+          margin-bottom: 1rem;
+        }
+        .form-label {
+          display: block;
+          margin-bottom: 0.5rem;
+          color: var(--text-secondary);
+          font-size: 0.875rem;
+        }
+        .form-select, .form-input {
+          width: 100%;
+          padding: 0.75rem;
+          background: var(--bg-glass);
+          border: 1px solid var(--border-glass);
+          border-radius: var(--radius-md);
+          color: var(--text-primary);
+          font-size: 1rem;
+        }
+        .form-select:focus, .form-input:focus {
+          outline: none;
+          border-color: var(--accent-primary);
+        }
+        .crop-grid {
+             display: grid;
+             grid-template-columns: repeat(4, 1fr);
+             gap: 0.5rem;
+        }
+        .crop-icon-btn {
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             padding: 0.5rem;
+             background: var(--bg-glass);
+             border: 1px solid var(--border-glass);
+             border-radius: var(--radius-md);
+             cursor: pointer;
+             color: var(--text-primary);
+        }
+        .crop-icon-btn .icon {
+             font-size: 1.5rem;
+             margin-bottom: 0.25rem;
+        }
+        .crop-icon-btn .name {
+             font-size: 0.75rem;
+        }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
 
 export default FarmSetup;
-

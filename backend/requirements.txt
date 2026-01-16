@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+litellm
+python-dotenv
+requests
+google-adk
+apscheduler

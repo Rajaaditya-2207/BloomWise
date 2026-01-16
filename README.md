@@ -1,77 +1,66 @@
-# BloomWise: AI Irrigation Agent 🌾💧
-> *An intelligent agent to improve irrigation and planning for Indian farmers.*
+# BloomWise: Smart Irrigation AI Agent for Indian Farmers
 
-BloomWise is a comprehensive, AI-powered agricultural assistant designed to help farmers across India optimize their water usage, improve crop yields, and plan their farming activities effectively. Built with a "farmer-first" approach, it supports 12 Indian languages and works seamlessly even in low-connectivity areas.
+## Project Overview
+BloomWise is an AI-powered smart irrigation scheduler designed specifically for Indian agriculture. It moves beyond generic weather apps by creating hyper-localized, crop-specific irrigation plans that respect India's diverse linguistic, climatic, and soil conditions. By bridging the gap between complex agronomy and simple farmer interactions, BloomWise empowers small-scale farmers to save water and improve yields.
 
-## 🌟 Key Features
+## Architecture
+The system follows a Local-First, AI-Driven Architecture designed for low-connectivity environments typical of rural India.
 
-*   **🤖 AI Agricultural Agent:** A conversational agent (powered by Google Gemini) that understands context, local farming practices, and irrigation needs.
-*   **🌍 Multilingual Support:** Full support for 12 languages including Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Odia, Punjabi, Assamese, and English.
-*   **💧 Smart Irrigation Scheduling:** AI-generated 7-day irrigation plans based on crop type, soil data, and real-time weather forecasts.
-*   **📶 Offline-First Architecture:** innovative "Offline Agent" capabilities that cache data and allow functional use without active internet.
-*   **📱 WhatsApp-Style Interface:** A familiar, intuitive chat interface designed for ease of use by farmers of all technical levels.
-*   **⚡ Power Schedule Integration:** Awareness of local power availability (3-phase power) to suggest optimal irrigation slots.
-*   **👀 Preview Mode:** A "Guest" mode to explore the app's features (Chat, Simulation, Reports) without registration.
+### Frontend Layer (Local First)
+- **UI:** React PWA (BloomWise)
+- **State Management:** Agent Memory (Local)
+- **Localization:** Translation Engine
+- **Offline Data:** IndexedDB / LocalStorage
 
-## 🚀 Getting Started
+### AI & Logic Layer
+- **Context:** Agent Memory
+- **Logic Engine:** Irrigation Logic Engine
+- **Calculation:** FAO-56 Penman-Monteith
+- **Crop Data:** Crop & Soil Knowledge Base
+- **Analogy/Reasoning:** LLM (Gemini Flash Inference)
 
-### Prerequisites
+### Backend & Cloud Services
+- **Auth & Sync:** Supabase Auth & DB
+- **Real-time Data:** Weather API
+- **Persistence:** PostgreSQL Database
 
-*   Node.js (v18 or higher)
-*   npm or yarn
+### Hardware Integration (Future/Mock)
+- **Control Signal:** IoT Controller
+- **Feedback Loop:** UI Integration
 
-### Installation
+## Problem Statement
+India faces a critical water crisis, with agriculture consuming 80-90% of freshwater resources. Traditional flood irrigation wastes 30-50% of this water.
+- **Information Gap:** Farmers lack access to scientific data like Evapotranspiration (ET0).
+- **Language Barrier:** Most agri-tech solutions are in English, alienating 90% of Indian farmers.
+- **Connectivity:** Rural internet is often intermittent, making cloud-only apps unreliable.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/Rajaaditya-2207/BloomWise.git
-    cd BloomWise
-    ```
+## The Solution: BloomWise
+BloomWise is a "Farmer-First" AI Agent that acts as a 24/7 agronomy expert.
+- **Hyper-Local Intelligence:** Custom irrigation schedules based on specific crop (Wheat, Rice, Cotton), soil type (Alluvial, Black, Red), and real-time local weather.
+- **Linguistic Inclusivity:** Full support for 12 Indian Languages (Hindi, Tamil, Telugu, Marathi, etc.) with transliteration.
+- **Agentic Workflow:** It doesn't just show data; it makes decisions. The AI proactively suggests: "Skip irrigation tomorrow due to expected rain."
+- **Hardware Ready:** Designed to interface with IoT valves for automated control (simulated in MVP).
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+## Key Features
+- **Weekly Water Report:** Visual analytics showing liters saved and percentage efficiency.
+- **Smart Scheduling:** Dynamic calendar adapting to rain forecasts and crop growth stages.
+- **Voice-Ready Chat Interface:** "WhatsApp-style" chat for natural interaction with the AI agent.
+- **Offline Capabilities:** Essential schedules cached for use without internet.
+- **Community & Leaderboard:** Gamification to encourage water-saving practices among regional farmers.
 
-3.  **Environment Setup:**
-    Create a `.env` file in the root directory (copy from `.env.example`):
-    ```bash
-    cp .env.example .env
-    ```
-    Add your API keys:
-    ```env
-    VITE_GEMINI_API_KEY=your_gemini_api_key_here
-    VITE_SUPABASE_URL=your_supabase_url
-    VITE_SUPABASE_ANON_KEY=your_supabase_key
-    ```
-    *(Note: This project uses Google Gemini for AI and Supabase for backend services)*
+## Tech Stack
+- **Frontend:** React.js, Vite, TailwindCSS (Custom Design System)
+- **Backend / Database:** Supabase (PostgreSQL, Auth)
+- **AI / Intelligence:** Google Gemini Flash (for reasoning and crop advice), Custom Agronomy Algorithms (FAO-56)
+- **APIs:** OpenMeteo (Weather), Supabase Auth (OTP)
 
-4.  **Run Development Server:**
-    ```bash
-    npm run dev
-    ```
-    The app will open at `http://localhost:5173`.
+## Screen Previews
+- **Welcome & Auth:** Multilingual onboarding with Email/OTP login.
+- **Dashboard:** Immediate status ("Irrigate Now" vs "Wait") and weather summary.
+- **Weekly Report:** Detailed water usage analytics.
+- **Chat Agent:** Conversational advice in native languages.
 
-## 🛠️ Technology Stack
-
-*   **Frontend:** React, Vite
-*   **Styling:** Custom CSS, Glassmorphism Design System
-*   **AI:** Google Gemini 2.5 Flash (via Google Generative AI SDK)
-*   **Backend/Database:** Supabase (PostgreSQL)
-*   **Icons:** Custom SVG Icons (lucide-react style)
-*   **Persistence:** LocalStorage + Supabase Sync
-
-## 📂 Project Structure
-
-*   `src/components/`: UI Components (Dashboard, Chat, Navigation, etc.)
-*   `src/services/`: Core logic (Agent Loop, Weather, Offline Manager)
-*   `src/data/`: Static data (Indian Crops, Soils, Power Schedules)
-*   `src/utils/`: Helpers (Translations, Formatters)
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Impact
+- **Water Conservation:** Potential to drive water usage down by 20-30% via precision scheduling.
+- **Economic Growth:** Reduced input costs (water/diesel) and higher yields through optimized moisture.
+- **Digital Inclusion:** Bringing AI benefits to the grassroots level in a language farmers understand.

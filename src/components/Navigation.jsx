@@ -21,7 +21,7 @@ function Navigation({ isPreviewMode = false }) {
             isHome: true
         },
         { path: `${basePath}/chat`, actualPath: `${basePath}/chat`, icon: AgentIcon, label: t('nav_chat') },
-        { path: `${basePath}/simulate`, actualPath: `${basePath}/simulate`, icon: SignalIcon, label: t('nav_simulate') || 'Simulate' },
+        { path: `${basePath}/decisions`, actualPath: `${basePath}/decisions`, icon: SignalIcon, label: t('nav_decisions') || 'Decisions' },
         { path: `${basePath}/report`, actualPath: `${basePath}/report`, icon: ReportIcon, label: t('nav_report') },
         { path: `${basePath}/settings`, actualPath: `${basePath}/settings`, icon: SettingsIcon, label: t('nav_settings') }
     ];

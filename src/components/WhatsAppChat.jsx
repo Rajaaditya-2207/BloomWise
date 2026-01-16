@@ -168,9 +168,9 @@ function WhatsAppChat() {
           <MenuIcon size={20} />
         </button>
         {showMenu && (
-          <div className="menu-dropdown glass-strong">
-            <button onClick={() => { navigate('/signals'); setShowMenu(false); }}>
-              <SignalIcon size={18} /> {t('signal_history')}
+          <div className="menu-dropdown glass-strong" style={{ backdropFilter: 'blur(12px)', background: 'rgba(30, 41, 59, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <button onClick={() => { navigate('/simulate'); setShowMenu(false); }}>
+              <SignalIcon size={18} /> Signal History
             </button>
             <button onClick={() => {
               setMessages([messages[0]]);

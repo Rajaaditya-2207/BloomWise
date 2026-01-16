@@ -1700,3 +1700,81 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
+
+/* =============================================
+   FORM INPUT IMPROVEMENTS - Dropdowns & Number Inputs
+   ============================================= */
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Smooth dropdown styling */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: var(--input-bg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 18px;
+    padding-right: 3rem;
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+select:hover {
+    border-color: var(--accent-primary);
+}
+
+/* Make dropdown options readable */
+select option {
+    background-color: #1a1a3e;
+    color: var(--text-primary);
+    padding: 0.75rem;
+}
+
+[data-theme="light"] select option {
+    background-color: #ffffff;
+    color: #1e293b;
+}
+
+/* Smooth input styling for text and number inputs in forms */
+.registration-container input,
+.registration-container select {
+    width: 100%;
+    padding: 1rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all var(--transition-fast);
+}
+
+.registration-container input:focus,
+.registration-container select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.registration-container input::placeholder {
+    color: var(--text-muted);
+}

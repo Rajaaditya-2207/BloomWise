@@ -46,11 +46,13 @@ export async function sendSignal(farmerId, signalData) {
 
     // Log to database
     try {
-        if (true) return; // Disabled for demo/offline
-        const { error } = await supabase.from('signal_history').insert([signal]);
-        if (error) {
-            console.log('Signal persistence skipped (Demo/Offline mode):', error.message || error);
-            signal.signal_status = SIGNAL_STATUS.FAILED;
+        // Only log if we have a valid farmerId
+        if (farmerId) {
+            const { error } = await supabase.from('signal_history').insert([signal]);
+            if (error) {
+                console.warn('Signal persistence failed:', error.message);
+                signal.signal_status = SIGNAL_STATUS.FAILED;
+            }
         }
     } catch (e) {
         console.warn('Supabase unavailable, signal logged locally only');
@@ -59,10 +61,12 @@ export async function sendSignal(farmerId, signalData) {
     // Mock: Simulate hardware acknowledgment after 2 seconds
     setTimeout(async () => {
         try {
-            await supabase
-                .from('signal_history')
-                .update({ signal_status: SIGNAL_STATUS.ACKNOWLEDGED })
-                .eq('id', signal.id);
+            if (farmerId) {
+                await supabase
+                    .from('signal_history')
+                    .update({ signal_status: SIGNAL_STATUS.ACKNOWLEDGED })
+                    .eq('id', signal.id);
+            }
         } catch (e) {
             // Ignore
         }
@@ -72,7 +76,7 @@ export async function sendSignal(farmerId, signalData) {
         success: true,
         signal,
         message: `Signal ${signal.action} sent to irrigation system`,
-        isMock: true
+        isMock: false
     };
 }
 
@@ -80,6 +84,9 @@ export async function sendSignal(farmerId, signalData) {
  * Get signal history for a farmer
  */
 export async function getSignalHistory(farmerId, limit = 50) {
+    if (!farmerId) {
+        return { success: true, signals: generateMockHistory().slice(0, limit), isMock: true };
+    }
     try {
         const { data, error } = await supabase
             .from('signal_history')
@@ -91,10 +98,10 @@ export async function getSignalHistory(farmerId, limit = 50) {
         if (error) throw error;
         return { success: true, signals: data || [] };
     } catch (e) {
-        // Return mock data
+        console.warn('Failed to fetch signal history:', e);
         return {
-            success: true,
-            signals: generateMockHistory(),
+            success: true, // Fallback to mock on error for robustness
+            signals: generateMockHistory().slice(0, limit),
             isMock: true
         };
     }
@@ -104,6 +111,21 @@ export async function getSignalHistory(farmerId, limit = 50) {
  * Get signal statistics for a farmer
  */
 export async function getSignalStats(farmerId, days = 30) {
+    if (!farmerId) {
+        const signals = generateMockHistory();
+        return {
+            success: true,
+            stats: {
+                totalSignals: signals.length,
+                irrigateCount: signals.filter(s => s.action === 'IRRIGATE').length,
+                skipCount: signals.filter(s => s.action === 'SKIP').length,
+                totalWaterUsed: signals.filter(s => s.action === 'IRRIGATE').reduce((acc, s) => acc + (s.water_amount_liters || 0), 0),
+                totalWaterSaved: signals.filter(s => s.action !== 'IRRIGATE').reduce((acc, s) => acc + (s.water_amount_liters || 0), 0)
+            },
+            isMock: true
+        };
+    }
+
     try {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
@@ -130,14 +152,17 @@ export async function getSignalStats(farmerId, days = 30) {
 
         return { success: true, stats };
     } catch (e) {
+        console.warn('Failed to fetch signal stats:', e);
+        // Fallback to mock on error
+        const signals = generateMockHistory();
         return {
             success: true,
             stats: {
-                totalSignals: 45,
-                irrigateCount: 28,
-                skipCount: 17,
-                totalWaterUsed: 3200000,
-                totalWaterSaved: 1400000
+                totalSignals: signals.length,
+                irrigateCount: signals.filter(s => s.action === 'IRRIGATE').length,
+                skipCount: signals.filter(s => s.action === 'SKIP').length,
+                totalWaterUsed: signals.filter(s => s.action === 'IRRIGATE').reduce((acc, s) => acc + (s.water_amount_liters || 0), 0),
+                totalWaterSaved: signals.filter(s => s.action !== 'IRRIGATE').reduce((acc, s) => acc + (s.water_amount_liters || 0), 0)
             },
             isMock: true
         };

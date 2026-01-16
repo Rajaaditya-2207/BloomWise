@@ -24,9 +24,14 @@ export async function getWeatherForecast(latitude, longitude, forecastDays = 7) 
     }
 
     try {
+        if (latitude === undefined || longitude === undefined) {
+            console.error('WeatherService: Missing coordinates', { latitude, longitude });
+            throw new Error("Missing coordinates for weather fetch");
+        }
+
         const params = new URLSearchParams({
-            latitude: latitude.toString(),
-            longitude: longitude.toString(),
+            latitude: String(latitude),
+            longitude: String(longitude),
             current: [
                 'temperature_2m',
                 'relative_humidity_2m',
@@ -136,15 +141,15 @@ function processWeatherData(data) {
 
     return {
         current: {
-            temperature: current.temperature_2m,
-            humidity: current.relative_humidity_2m,
-            precipitation: current.precipitation,
-            weatherCode: current.weather_code,
-            weatherDescription: getWeatherDescription(current.weather_code),
-            windSpeed: current.wind_speed_10m,
-            soilTemperature: current.soil_temperature_0cm,
-            soilMoisture: current.soil_moisture_0_to_1cm,
-            time: new Date()
+            temperature: current?.temperature_2m || 0,
+            humidity: current?.relative_humidity_2m || 0,
+            precipitation: current?.precipitation || 0,
+            weatherCode: current?.weather_code || 0,
+            weatherDescription: getWeatherDescription(current?.weather_code || 0),
+            windSpeed: current?.wind_speed_10m || 0,
+            soilTemperature: current?.soil_temperature_0cm || 0,
+            soilMoisture: current?.soil_moisture_0_to_1cm || 0,
+            time: current?.time ? new Date(current.time) : new Date()
         },
 
         hourly: {

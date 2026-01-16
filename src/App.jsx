@@ -16,8 +16,10 @@ import SignalHistory from './components/SignalHistory';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AnalyticsPage from './components/AnalyticsPage';
 import LandingPage from './components/LandingPage';
-import SignIn from './components/SignIn';
-import Simulate from './components/Simulate';
+import Login from './components/Login';
+import Decisions from './components/Decisions';
+import AgentLoading from './components/AgentLoading';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Services
 import { getSettings, saveSettings, isOnline, setupNetworkListeners } from './services/offlineManager';
@@ -26,6 +28,8 @@ import { getWeatherForecast } from './services/weatherService';
 import { getCurrentPowerStatus } from './data/powerSchedules';
 import { agentMemory } from './services/agentMemory';
 import { backgroundAgent } from './services/backgroundAgent';
+import { REALISTIC_MOCK_FARM } from './data/mockFarmData';
+import { SunIcon, MoonIcon } from './components/Icons';
 
 // Utils
 import { t, getCurrentLanguage, setCurrentLanguage, SUPPORTED_LANGUAGES } from './utils/translations';
@@ -37,24 +41,9 @@ export const ThemeContext = createContext();
 
 // Available themes
 export const THEMES = [
-    { id: 'dark', name: 'Dark', icon: '🌙', nameHi: 'डार्क' },
-    { id: 'light', name: 'Light', icon: '☀️', nameHi: 'लाइट' }
+    { id: 'dark', name: 'Dark', icon: <MoonIcon />, nameHi: 'डार्क' },
+    { id: 'light', name: 'Light', icon: <SunIcon />, nameHi: 'लाइट' }
 ];
-
-const MOCK_FARM_PREVIEW = {
-    id: 'preview-farmer',
-    name: 'Rajesh Kumar (Preview)',
-    state: 'UP',
-    district: 'Lucknow',
-    village: 'Demo Village',
-    land_size_ha: 2.5,
-    soil_type: 'alluvial',
-    water_source: 'borewell',
-    irrigation_method: 'drip',
-    latitude: 26.8467,
-    longitude: 80.9462,
-    isDemo: true
-};
 
 function App() {
     // State
@@ -81,8 +70,8 @@ function App() {
             // Wait for splash screen regardless of preview
             (async () => {
                 await minLoadTime;
-                setFarm(MOCK_FARM_PREVIEW);
-                setIsRegistered(true);
+                setFarm(REALISTIC_MOCK_FARM);
+                // setIsRegistered(true); // Do NOT set registered for preview, prevents background agent
                 setLoading(false);
             })();
 
@@ -116,7 +105,7 @@ function App() {
 
     // Fetch weather when farm location changes
     useEffect(() => {
-        if (farm?.latitude && farm?.longitude) {
+        if (farm?.latitude !== undefined && farm?.longitude !== undefined) {
             fetchWeather(farm.latitude, farm.longitude);
         }
     }, [farm?.latitude, farm?.longitude]);
@@ -147,12 +136,36 @@ function App() {
                 }
             }
 
-            // Important: If data is demo/preview, treat as NOT registered for persistent session
             if (foundFarm && !foundFarm.isDemo) {
                 setFarm(foundFarm);
                 setIsRegistered(true);
             } else {
-                setIsRegistered(false);
+                // Fallback: Check Supabase directly (User might be logged in but cache cleared)
+                // Import needed first
+                const { getCurrentUser, supabase } = await import('./services/supabase');
+                const user = await getCurrentUser();
+
+                if (user) {
+                    console.log('User found in session, checking DB...');
+                    const { data: dbFarm } = await supabase
+                        .from('farmers')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (dbFarm) {
+                        console.log('Restored farm from DB');
+                        agentMemory.setFarmer(dbFarm); // Sync memory
+                        setFarm(agentMemory.getContext().farm);
+                        setIsRegistered(true);
+                        foundFarm = dbFarm;
+                    }
+                } else {
+                    setIsRegistered(false);
+                }
+            }
+
+            if (!foundFarm && !isRegistered) {
                 // Optionally clear invalid demo data from storage if needed, but ignoring it is safer
                 if (foundFarm?.isDemo) {
                     console.log('Clearing leftover demo data from session');
@@ -301,146 +314,153 @@ function App() {
         <AppContext.Provider value={appContextValue}>
             <ThemeContext.Provider value={themeContextValue}>
                 <LanguageContext.Provider value={languageContextValue}>
-                    <div className="app">
-                        {/* Offline Banner */}
-                        {isOffline && <OfflineIndicator />}
+                    <ErrorBoundary>
+                        <div className="app">
+                            {/* Offline Banner */}
+                            {isOffline && <OfflineIndicator />}
 
-                        {/* Main Content */}
-                        <main className="app-main" style={{ paddingBottom: (location.pathname === '/chat' || location.pathname === '/preview/chat' || location.pathname.includes('/analytics')) ? '0' : '80px' }}>
-                            <Routes>
-                                {/* Registration route - shown if not registered */}
-                                <Route
-                                    path="/register"
-                                    element={<FarmerRegistration onComplete={handleRegistrationComplete} />}
-                                />
+                            {/* Main Content */}
+                            <main className="app-main" style={{ paddingBottom: (location.pathname === '/chat' || location.pathname === '/preview/chat' || location.pathname.includes('/analytics')) ? '0' : '80px' }}>
+                                <Routes>
+                                    {/* Registration route - shown if not registered */}
+                                    <Route
+                                        path="/register"
+                                        element={<FarmerRegistration onComplete={handleRegistrationComplete} />}
+                                    />
 
-                                {/* Public Welcome Page - ALWAYS Welcome unless logged in */}
-                                <Route
-                                    path="/"
-                                    element={<LandingPage />}
-                                />
+                                    {/* Public Welcome Page - ALWAYS Welcome unless logged in */}
+                                    <Route
+                                        path="/"
+                                        element={<LandingPage />}
+                                    />
 
-                                {/* User Routes - Authenticated */}
-                                <Route
-                                    path="/home"
-                                    element={isRegistered ? <Dashboard /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/welcome"
-                                    element={<LandingPage />}
-                                />
-                                <Route
-                                    path="/signin"
-                                    element={isRegistered ? <Navigate to="/home" replace /> : <SignIn />}
-                                />
+                                    {/* User Routes - Authenticated */}
+                                    <Route
+                                        path="/home"
+                                        element={isRegistered ? <Dashboard /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/welcome"
+                                        element={<LandingPage />}
+                                    />
+                                    <Route
+                                        path="/login"
+                                        element={<Login />}
+                                    />
 
-                                {/* Preview Routes - Explicit Paths */}
-                                <Route
-                                    path="/preview"
-                                    element={<Navigate to="/preview/home" replace />}
-                                />
-                                <Route
-                                    path="/preview/home"
-                                    element={<Dashboard />}
-                                />
-                                <Route
-                                    path="/preview/schedule"
-                                    element={<IrrigationSchedule />}
-                                />
-                                <Route
-                                    path="/preview/chat"
-                                    element={<WhatsAppChat />}
-                                />
-                                <Route
-                                    path="/preview/report"
-                                    element={<WeeklyReport />}
-                                />
-                                <Route
-                                    path="/preview/signals"
-                                    element={<SignalHistory />}
-                                />
-                                <Route
-                                    path="/preview/settings"
-                                    element={<Settings />}
-                                />
-                                <Route
-                                    path="/preview/analytics"
-                                    element={<AnalyticsPage />}
-                                />
-                                <Route
-                                    path="/preview/analytics/water"
-                                    element={<AnalyticsDashboard type="waterUsage" />}
-                                />
-                                <Route
-                                    path="/preview/analytics/crop"
-                                    element={<AnalyticsDashboard type="cropGrowth" />}
-                                />
-                                <Route
-                                    path="/preview/analytics/agent"
-                                    element={<AnalyticsDashboard type="agentDecisions" />}
-                                />
+                                    {/* Preview Routes - Explicit Paths */}
+                                    <Route
+                                        path="/preview"
+                                        element={<Navigate to="/preview/home" replace />}
+                                    />
+                                    <Route
+                                        path="/preview/home"
+                                        element={<Dashboard />}
+                                    />
+                                    <Route
+                                        path="/preview/schedule"
+                                        element={<IrrigationSchedule />}
+                                    />
+                                    <Route
+                                        path="/preview/chat"
+                                        element={<WhatsAppChat />}
+                                    />
+                                    <Route
+                                        path="/preview/report"
+                                        element={<WeeklyReport />}
+                                    />
+                                    <Route
+                                        path="/preview/signals"
+                                        element={<SignalHistory />}
+                                    />
+                                    <Route
+                                        path="/preview/settings"
+                                        element={<Settings />}
+                                    />
+                                    <Route
+                                        path="/preview/analytics"
+                                        element={<AnalyticsPage />}
+                                    />
+                                    <Route
+                                        path="/preview/analytics/water"
+                                        element={<AnalyticsDashboard type="waterUsage" />}
+                                    />
+                                    <Route
+                                        path="/preview/analytics/crop"
+                                        element={<AnalyticsDashboard type="cropGrowth" />}
+                                    />
+                                    <Route
+                                        path="/preview/analytics/agent"
+                                        element={<AnalyticsDashboard type="agentDecisions" />}
+                                    />
 
-                                {/* Legacy /preview/simulate and others if needed, but sticking to requested list */}
-                                <Route
-                                    path="/preview/simulate"
-                                    element={<Simulate />}
-                                />
+                                    {/* Legacy /preview/simulate and others if needed, but sticking to requested list */}
+                                    <Route
+                                        path="/preview/decisions"
+                                        element={<Decisions />}
+                                    />
 
-                                {/* User Feature Routes */}
-                                <Route
-                                    path="/schedule"
-                                    element={isRegistered ? <IrrigationSchedule /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/chat"
-                                    element={isRegistered ? <WhatsAppChat /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/farm"
-                                    element={isRegistered ? <FarmSetup /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/report"
-                                    element={isRegistered ? <WeeklyReport /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/settings"
-                                    element={isRegistered ? <Settings /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/signals"
-                                    element={isRegistered ? <SignalHistory /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/simulate"
-                                    element={isRegistered ? <Simulate /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/analytics"
-                                    element={isRegistered ? <AnalyticsPage /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/analytics/water"
-                                    element={isRegistered ? <AnalyticsDashboard type="waterUsage" /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/analytics/crop"
-                                    element={isRegistered ? <AnalyticsDashboard type="cropGrowth" /> : <Navigate to="/" replace />}
-                                />
-                                <Route
-                                    path="/analytics/agent"
-                                    element={isRegistered ? <AnalyticsDashboard type="agentDecisions" /> : <Navigate to="/" replace />}
-                                />
-                            </Routes>
-                        </main>
+                                    {/* User Feature Routes */}
+                                    <Route
+                                        path="/schedule"
+                                        element={isRegistered ? <IrrigationSchedule /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/chat"
+                                        element={isRegistered ? <WhatsAppChat /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/farm"
+                                        element={isRegistered ? <FarmSetup /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/report"
+                                        element={isRegistered ? <WeeklyReport /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/settings"
+                                        element={isRegistered ? <Settings /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/signals"
+                                        element={isRegistered ? <SignalHistory /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/decisions"
+                                        element={isRegistered ? <Decisions /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/loading"
+                                        element={<AgentLoading />}
+                                    />
+                                    <Route
+                                        path="/analytics"
+                                        element={isRegistered ? <AnalyticsPage /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/analytics/water"
+                                        element={isRegistered ? <AnalyticsDashboard type="waterUsage" /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/analytics/crop"
+                                        element={isRegistered ? <AnalyticsDashboard type="cropGrowth" /> : <Navigate to="/" replace />}
+                                    />
+                                    <Route
+                                        path="/analytics/agent"
+                                        element={isRegistered ? <AnalyticsDashboard type="agentDecisions" /> : <Navigate to="/" replace />}
+                                    />
+                                </Routes>
+                            </main>
 
-                        {/* Bottom Navigation - hide on registration only */}
-                        {location.pathname !== '/register' &&
-                            location.pathname !== '/welcome' &&
-                            location.pathname !== '/signin' &&
-                            (isRegistered || location.pathname.startsWith('/preview')) &&
-                            <Navigation isPreviewMode={location.pathname.startsWith('/preview')} />}
-                    </div>
+                            {/* Bottom Navigation - hide on public pages */}
+                            {location.pathname !== '/' &&
+                                location.pathname !== '/register' &&
+                                location.pathname !== '/welcome' &&
+                                location.pathname !== '/login' &&
+                                (isRegistered || location.pathname.startsWith('/preview')) &&
+                                <Navigation isPreviewMode={location.pathname.startsWith('/preview')} />}
+                        </div>
+                    </ErrorBoundary>
                 </LanguageContext.Provider>
             </ThemeContext.Provider>
         </AppContext.Provider>

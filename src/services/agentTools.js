@@ -9,6 +9,7 @@ import { indianSoils, getSoilById, getIrrigationMultiplier } from '../data/india
 import { getPowerSchedule } from '../data/powerSchedules';
 import { supabase } from './supabase';
 import { agentDecisionLog } from './agentDecisionLog';
+import signalService from './signalService';
 
 /**
  * Tool definitions for Gemini function calling
@@ -194,9 +195,13 @@ export const toolDefinitions = [
  * Tool Handlers - Execute the actual tool logic
  */
 export const toolHandlers = {
-    async get_weather({ latitude, longitude, days = 7 }) {
+    async get_weather({ latitude, longitude, days = 7, farmContext }) {
+        // Fallback to farm context if coordinates not provided
+        const lat = latitude || farmContext?.farm?.latitude || 20.5937;
+        const lon = longitude || farmContext?.farm?.longitude || 78.9629;
+
         try {
-            const weather = await weatherService.getWeatherForecast(latitude, longitude, days);
+            const weather = await weatherService.getWeatherForecast(lat, lon, days);
 
             // Generate rain alerts
             const rainAlerts = [];
@@ -333,20 +338,16 @@ export const toolHandlers = {
     },
 
     async send_irrigation_signal({ action, waterAmountLiters, durationMins, reasoning, conditions, farmerId }) {
-        // This is the mock hardware signal handler
-        const signal = {
-            id: crypto.randomUUID(),
-            farmer_id: farmerId,
-            timestamp: new Date().toISOString(),
+        // Log to Signal Service (Hardware Log) - This updates signal_history table
+        await signalService.sendSignal(farmerId, {
             action,
-            water_amount_liters: waterAmountLiters || null,
-            duration_mins: durationMins || null,
-            reasoning,
-            conditions: conditions || {},
-            signal_status: 'SENT' // Mock: always succeeds
-        };
+            waterAmountLiters,
+            durationMins,
+            conditions,
+            reasoning
+        });
 
-        // Log to Decision Log Service (Persist to LocalStorage/DB)
+        // Log to Decision Log Service (Analytics Log)
         const decisionEntry = {
             action,
             reason: reasoning,
@@ -358,23 +359,22 @@ export const toolHandlers = {
         };
 
         // If we have farmContext, we are in Preview/Demo mode
-        // Pass true to logDecision to force LocalStorage (Simulated DB)
+        // Pass to logDecision to handle persistence correctly
         const isPreview = !!farmerId?.startsWith('mock-') || (conditions && conditions.isPreview);
         agentDecisionLog.logDecision(decisionEntry, isPreview);
 
         return {
             success: true,
             signal: {
-                id: signal.id,
                 action,
                 status: 'SENT',
-                timestamp: signal.timestamp,
+                timestamp: new Date().toISOString(),
                 waterAmountLiters,
                 durationMins
             },
             message: `Signal ${action} sent to irrigation system`,
-            isMock: true,
-            note: 'Signal saved to Decision Log.'
+            isMock: false,
+            note: 'Signal logged to History & Analytics.'
         };
     },
 
@@ -397,7 +397,7 @@ export const toolHandlers = {
                 logs = data;
             }
         } catch (e) {
-            console.warn('Using mock data for report');
+            console.warn('Error fetching logs for report:', e);
         }
 
         // Calculate metrics
@@ -419,25 +419,25 @@ export const toolHandlers = {
                     end: new Date().toISOString().split('T')[0]
                 },
                 waterUsed: {
-                    liters: totalWaterUsed || 280000, // Mock default
-                    cubicMeters: Math.round((totalWaterUsed || 280000) / 1000)
+                    liters: totalWaterUsed,
+                    cubicMeters: Math.round(totalWaterUsed / 1000)
                 },
                 waterSaved: {
-                    liters: totalWaterSaved || 120000, // Mock default
-                    cubicMeters: Math.round((totalWaterSaved || 120000) / 1000)
+                    liters: totalWaterSaved,
+                    cubicMeters: Math.round(totalWaterSaved / 1000)
                 },
                 baseline: {
                     liters: baselineLiters,
                     description: 'Fixed 50mm/day schedule'
                 },
-                savingsPercent: savingsPercent || 30,
-                rainEventsAvoided: rainEventsAvoided || 2,
-                irrigationEvents: logs.length || 5,
-                efficiency: 'High'
+                savingsPercent: savingsPercent,
+                rainEventsAvoided: rainEventsAvoided,
+                irrigationEvents: logs.length,
+                efficiency: savingsPercent > 20 ? 'High' : 'Normal'
             },
             insights: [
-                'Smart scheduling saved approximately 30% water this week',
-                `Avoided ${rainEventsAvoided || 2} unnecessary irrigations before rain`,
+                `Smart scheduling saved approximately ${savingsPercent}% water this week`,
+                `Avoided ${rainEventsAvoided} unnecessary irrigations before rain`,
                 'Recommendation: Continue monitoring soil moisture during flowering stage'
             ],
             source: 'KrishiMitra Analytics'

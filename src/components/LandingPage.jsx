@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../App';
-import { EyeIcon, ProjectLogo } from './Icons';
+import { EyeIcon, ColoredProjectLogo } from './Icons';
 import LanguageSelector from './LanguageSelector';
 
 function LandingPage() {
@@ -14,11 +14,10 @@ function LandingPage() {
                 <LanguageSelector />
             </div>
             <div className="landing-content glass-card">
-                <div className="logo-container">
-                    <ProjectLogo size={48} style={{ color: 'white' }} />
+                <div className="logo-title-row">
+                    <ColoredProjectLogo size={48} />
+                    <h1 className="app-title">BloomWise</h1>
                 </div>
-
-                <h1 className="app-title">BloomWise</h1>
                 <p className="app-tagline">{t('schedule_desc')}</p>
 
                 <div className="action-buttons">
@@ -31,7 +30,7 @@ function LandingPage() {
 
                     <button
                         className="btn-primary start-btn"
-                        onClick={() => navigate('/signin')}
+                        onClick={() => navigate('/login')}
                     >
                         {t('sign_in')}
                     </button>
@@ -76,16 +75,11 @@ function LandingPage() {
                     box-shadow: 0 20px 50px var(--shadow-color);
                 }
 
-                .logo-container {
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 50%;
-                    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+                .logo-title-row {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    box-shadow: 0 0 30px var(--accent-glow);
-                    margin-bottom: 0.5rem;
+                    gap: 0.75rem;
                 }
 
                 .app-icon {
@@ -96,7 +90,7 @@ function LandingPage() {
                     font-size: 2.5rem;
                     font-weight: 800;
                     margin: 0;
-                    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+                    background: linear-gradient(135deg, #22c55e 0%, #10b981 50%, #059669 100%);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
                     text-shadow: 0 2px 10px rgba(0,0,0,0.1);
