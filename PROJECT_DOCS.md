@@ -8,7 +8,7 @@
 ## 🏗️ Architecture
 The system follows a **Local-First, AI-Driven Architecture** designed for low-connectivity environments typical of rural India.
 
-```
+```mermaid
 flowchart TD
     User((Farmer)) -->|Interact via Voice/Text| UI["React PWA (BloomWise)"]
     
