@@ -8,31 +8,31 @@
 ## 🏗️ Architecture
 The system follows a **Local-First, AI-Driven Architecture** designed for low-connectivity environments typical of rural India.
 
-```mermaid
-graph TD
-    User((Farmer)) -->|Interact via Voice/Text| UI[React PWA (BloomWise)]
+```
+flowchart TD
+    User((Farmer)) -->|Interact via Voice/Text| UI["React PWA (BloomWise)"]
     
-    subgraph "Frontend Layer (Local First)"
-        UI -->|State Mgmt| AgentMem[Agent Memory (Local)]
-        UI -->|Localization| Trans[Translation Engine]
-        UI -->|Offline Data| Cache[IndexedDB / LocalStorage]
+    subgraph Frontend["Frontend Layer (Local First)"]
+        UI -->|State Mgmt| AgentMem["Agent Memory (Local)"]
+        UI -->|Localization| Trans["Translation Engine"]
+        UI -->|Offline Data| Cache["IndexedDB / LocalStorage"]
     end
 
-    subgraph "AI & Logic Layer"
-        AgentMem -->|Context| Logic[Irrigation Logic Engine]
-        Logic -->|Calculate| FAO[FAO-56 Penman-Monteith]
-        Logic -->|Crop Data| KB[Crop & Soil Knowledge Base]
-        Logic -->|Analogy| LLM[Gemini Flash (Inference)]
+    subgraph AILogic["AI & Logic Layer"]
+        AgentMem -->|Context| Logic["Irrigation Logic Engine"]
+        Logic -->|Calculate| FAO["FAO-56 Penman-Monteith"]
+        Logic -->|Crop Data| KB["Crop & Soil Knowledge Base"]
+        Logic -->|Analogy| LLM["Gemini Flash (Inference)"]
     end
 
-    subgraph "Backend & Cloud Services"
-        UI -->|Auth & Sync| Supabase[Supabase Auth & DB]
-        Logic -->|Real-time Data| Weather[Weather API]
-        Supabase -->|Persist| DB[(PostgreSQL)]
+    subgraph Backend["Backend & Cloud Services"]
+        UI -->|Auth & Sync| Supabase["Supabase Auth & DB"]
+        Logic -->|Real-time Data| Weather["Weather API"]
+        Supabase -->|Persist| DB[("PostgreSQL")]
     end
 
-    subgraph "Hardware Integration (Future/Mock)"
-        Logic -->|Control Signal| IoT[IoT Controller]
+    subgraph Hardware["Hardware Integration (Future/Mock)"]
+        Logic -->|Control Signal| IoT["IoT Controller"]
         IoT -->|Feedback| UI
     end
 ```
